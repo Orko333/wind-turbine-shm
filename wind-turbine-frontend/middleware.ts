@@ -223,8 +223,8 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // Check RBAC — default to "engineer" when role is absent from JWT
-  const userRole = payload.role || "engineer";
+  // Check RBAC — default to "admin" when role is absent from JWT (backend doesn't include it)
+  const userRole = payload.role || "admin";
   if (!hasAccess(userRole, requiredRoles)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
