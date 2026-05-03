@@ -7,13 +7,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * JWT payload interface
+ * JWT payload interface — matches the backend's token structure
  */
 interface JwtPayload {
-  sub: string;
-  email: string;
-  role: string;
-  iat: number;
+  user_id?: string;   // backend field
+  username?: string;  // backend field
+  sub?: string;
+  email?: string;
+  role?: string;
+  iat?: number;
   exp: number;
   [key: string]: unknown;
 }
@@ -221,17 +223,16 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // Check RBAC - user role against required roles
-  const userRole = payload.role;
+  // Check RBAC — default to "engineer" when role is absent from JWT
+  const userRole = payload.role || "engineer";
   if (!hasAccess(userRole, requiredRoles)) {
-    // User doesn't have permission for this route
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   // Add user info to request headers for use in route handlers
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-user-id", payload.sub || "");
-  requestHeaders.set("x-user-email", payload.email || "");
+  requestHeaders.set("x-user-id", payload.sub || payload.user_id || "");
+  requestHeaders.set("x-user-email", payload.email || payload.username || "");
   requestHeaders.set("x-user-role", userRole);
   requestHeaders.set("x-token-expires-in", String(getTokenExpiresIn(token)));
 
