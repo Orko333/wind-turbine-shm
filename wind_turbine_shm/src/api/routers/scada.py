@@ -1,15 +1,20 @@
 """Роутер інтеграції SCADA — підключення до реальних систем турбін."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timedelta, timezone
+from io import StringIO
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Dict, Optional, List
 from loguru import logger
 
 from ...database.config import get_db
-from ...database.models import User, Turbine
+from ...database.models import User, Turbine, ScadaReading as ScadaReadingDB
 from ..dependencies import get_current_user
 from ...scada.client import SCADAIntegration, SCADAProtocol, SCADAReading
+from ...scada.realtime_simulator import realtime_registry
 
 router = APIRouter(prefix="/scada", tags=["scada"])
 
@@ -236,3 +241,112 @@ async def start_polling(
         "turbine_id": turbine_id,
         "interval_seconds": interval_seconds,
     }
+
+
+class ScadaHistorySample(BaseModel):
+    timestamp: str
+    wind_speed: float
+    rotor_rpm: float
+    pitch_angle: float
+    power_kw: float
+    tower_moment_knm: float
+    tower_top_accel_rms: Optional[float] = None
+    blade_load_kn: Optional[float] = None
+    vibration_mms: Optional[float] = None
+    nacelle_temp_degC: Optional[float] = None
+    cumulative_damage: Optional[float] = None
+
+
+class ScadaHistoryResponse(BaseModel):
+    turbine_id: str
+    count: int
+    samples: List[ScadaHistorySample]
+
+
+@router.get("/history/{turbine_id}", response_model=ScadaHistoryResponse)
+async def get_scada_history(
+    turbine_id: str,
+    hours: int = Query(24, ge=1, le=720),
+    limit: int = Query(2000, ge=1, le=10000),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ScadaHistoryResponse:
+    """Повертає збережені SCADA-зразки турбіни за останні N годин."""
+    turbine = db.query(Turbine).filter(
+        (Turbine.turbine_id == turbine_id) & (Turbine.owner_id == current_user.id)
+    ).first()
+    if not turbine:
+        raise HTTPException(status_code=404, detail="Turbine not found")
+
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    rows = (
+        db.query(ScadaReadingDB)
+        .filter(ScadaReadingDB.turbine_id == turbine_id, ScadaReadingDB.timestamp >= since)
+        .order_by(ScadaReadingDB.timestamp.asc())
+        .limit(limit)
+        .all()
+    )
+
+    samples = [
+        ScadaHistorySample(
+            timestamp=r.timestamp.isoformat(),
+            wind_speed=r.wind_speed,
+            rotor_rpm=r.rotor_rpm,
+            pitch_angle=r.pitch_angle,
+            power_kw=r.power_kw,
+            tower_moment_knm=r.tower_moment_knm,
+            tower_top_accel_rms=r.tower_top_accel_rms,
+            blade_load_kn=r.blade_load_kn,
+            vibration_mms=r.vibration_mms,
+            nacelle_temp_degC=r.nacelle_temp_degC,
+            cumulative_damage=r.cumulative_damage,
+        )
+        for r in rows
+    ]
+    return ScadaHistoryResponse(turbine_id=turbine_id, count=len(samples), samples=samples)
+
+
+@router.get("/export/{turbine_id}.csv")
+async def export_scada_csv(
+    turbine_id: str,
+    hours: int = Query(24, ge=1, le=720),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """CSV експорт збережених SCADA-зразків за останні N годин."""
+    turbine = db.query(Turbine).filter(
+        (Turbine.turbine_id == turbine_id) & (Turbine.owner_id == current_user.id)
+    ).first()
+    if not turbine:
+        raise HTTPException(status_code=404, detail="Turbine not found")
+
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    rows = (
+        db.query(ScadaReadingDB)
+        .filter(ScadaReadingDB.turbine_id == turbine_id, ScadaReadingDB.timestamp >= since)
+        .order_by(ScadaReadingDB.timestamp.asc())
+        .all()
+    )
+
+    buf = StringIO()
+    cols = [
+        "timestamp", "wind_speed", "rotor_rpm", "pitch_angle", "power_kw",
+        "tower_moment_knm", "tower_top_accel_rms", "blade_load_kn",
+        "vibration_mms", "nacelle_temp_degC", "cumulative_damage",
+    ]
+    buf.write(",".join(cols) + "\n")
+    for r in rows:
+        buf.write(",".join(str(v) if v is not None else "" for v in [
+            r.timestamp.isoformat(),
+            r.wind_speed, r.rotor_rpm, r.pitch_angle, r.power_kw,
+            r.tower_moment_knm, r.tower_top_accel_rms, r.blade_load_kn,
+            r.vibration_mms, r.nacelle_temp_degC, r.cumulative_damage,
+        ]) + "\n")
+    buf.seek(0)
+
+    filename = f"turbine-{turbine_id}-{hours}h-{datetime.now(timezone.utc).date()}.csv"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

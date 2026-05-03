@@ -435,8 +435,8 @@ export default function PhysicsPage() {
               </ul>
             </div>
             <div>
-              <p className="font-medium text-cyan-900 mb-3">{t('physics.model_3_0_mw')}</p>
-              <ul className="space-y-2 text-sm text-cyan-800">
+              <p className="font-medium signal-live mb-3">{t('physics.model_3_0_mw')}</p>
+              <ul className="space-y-2 text-sm ink-2">
                 <li>{t('physics.rotor_diameter')}: 112 m</li>
                 <li>{t('physics.rated_power')}: 3.0 MW</li>
                 <li>{t('physics.hub_height')}: 100 m</li>

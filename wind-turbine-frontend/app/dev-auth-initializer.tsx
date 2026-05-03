@@ -12,18 +12,46 @@ export function DevAuthInitializer() {
   );
 }
 
-/** Re-fetches user from /auth/me if a persisted token exists but user is null. */
+/**
+ * Re-hydrates auth from the httpOnly cookie when the client has no token.
+ *
+ * When a returning user has a valid auth_token cookie but localStorage was
+ * cleared (different browser session, cleared storage, etc.), client API
+ * calls would otherwise fail with 401/403 because getApiWithAuth reads from
+ * localStorage. This hydrator hits the Next.js /api/auth/me proxy (which
+ * reads the cookie server-side), and on success seeds localStorage + Zustand.
+ */
 function AuthHydrator() {
-  const { token, user, isLoading, fetchCurrentUser } = useAuthStore();
+  const { user, isLoading, setToken, setUser } = useAuthStore();
   const attempted = useRef(false);
 
   useEffect(() => {
-    if (!token || user || isLoading || attempted.current) return;
+    if (user || isLoading || attempted.current) return;
     attempted.current = true;
-    fetchCurrentUser().catch(() => {
-      // token invalid — store already cleared by fetchCurrentUser on failure
-    });
-  }, [token, user, isLoading, fetchCurrentUser]);
+
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.access_token && typeof window !== 'undefined') {
+          localStorage.setItem('auth_token', data.access_token);
+          setToken(data.access_token);
+        }
+        if (data?.id) {
+          setUser({
+            id: data.id,
+            email: data.email,
+            name: data.name,
+            role: data.role,
+            created_at: data.created_at,
+          });
+        }
+      } catch {
+        // No valid session — nothing to hydrate
+      }
+    })();
+  }, [user, isLoading, setToken, setUser]);
 
   return null;
 }

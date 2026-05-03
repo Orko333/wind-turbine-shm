@@ -16,7 +16,7 @@ const nextConfig = {
     ],
   },
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://test1111ww-wind-turbine-shm-api.hf.space',
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {

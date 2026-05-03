@@ -170,7 +170,7 @@ export function ThrustMoment({ data = [], model = '2.5MW', isLoading }: ThrustMo
               yAxisId="right"
               type="monotone"
               dataKey="moment_knm"
-              stroke="#a855f7"
+              stroke="hsl(168 60% 56%)"
               dot={false}
               isAnimationActive={false}
               strokeWidth={2}
@@ -186,7 +186,7 @@ export function ThrustMoment({ data = [], model = '2.5MW', isLoading }: ThrustMo
             <p className="text-lg font-semibold ink-1">{maxThrust.toFixed(0)} kN</p>
           </div>
           <div className="p-3 rounded-lg surface-2 border hairline">
-            <p className="text-xs text-purple-700">{t('physics.max_moment')}</p>
+            <p className="text-xs signal-live">{t('physics.max_moment')}</p>
             <p className="text-lg font-semibold ink-1">{maxMoment.toFixed(0)} kNm</p>
           </div>
           <div className="p-3 rounded-lg bg-muted">

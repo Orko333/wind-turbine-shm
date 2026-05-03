@@ -30,11 +30,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-def create_access_token(user_id: str, username: str, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(user_id: str, username: str, role: str = "engineer", expires_delta: Optional[timedelta] = None) -> str:
     """Create a JWT access token."""
     to_encode = {
         "user_id": user_id,
         "username": username,
+        "role": role,
     }
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta

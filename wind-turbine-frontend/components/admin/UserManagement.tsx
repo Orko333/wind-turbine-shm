@@ -141,12 +141,12 @@ export function UserManagement() {
 
   const getRoleBadgeColor = useCallback((role: string) => {
     const colors: Record<string, string> = {
-      admin: 'surface-3 signal-crit',
-      engineer: 'surface-3 ink-2',
-      manager: 'bg-purple-100 text-purple-800',
-      operator: 'surface-3 signal-live',
+      admin:    'surface-3 signal-crit hairline border',
+      engineer: 'surface-3 signal-warn hairline border',
+      manager:  'surface-3 signal-live hairline border',
+      operator: 'surface-3 ink-2 hairline border',
     };
-    return colors[role] || 'surface-3 ink-1';
+    return `${colors[role] || 'surface-3 ink-1'} mono text-[10px] tracking-widest uppercase`;
   }, []);
 
   const getStatusBadgeColor = useCallback((status: string) => {

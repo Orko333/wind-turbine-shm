@@ -88,17 +88,16 @@ export const useAuthStore = create<AuthStore>()(
           // Clear token refresh таймер
           clearTokenRefreshTimer();
 
-          // Call logout endpoint if it exists
+          // Call Next.js logout route — this is the only way to delete the
+          // httpOnly auth_token cookie set by /api/auth/login. document.cookie
+          // alone cannot clear httpOnly cookies.
           try {
-            await postApiWithAuth("/auth/logout", {});
+            await fetch("/api/auth/logout", { method: "POST" });
           } catch {
-            // Logout endpoint may not exist, continue with client-side очищення
+            // Network failure — still clear client-side state below
           }
 
           clearAuthToken();
-
-          // Clear the HTTP cookie
-          document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
 
           set({ user: null, token: null });
         } catch (error) {

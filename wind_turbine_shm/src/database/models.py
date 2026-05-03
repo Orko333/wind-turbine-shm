@@ -65,6 +65,7 @@ class User(Base):
     username = Column(String(255), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
+    role = Column(String(50), default="engineer", nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -154,6 +155,31 @@ class TurbinePrediction(Base):
 
     def __repr__(self):
         return f"<TurbinePrediction {self.id}>"
+
+
+class ScadaReading(Base):
+    """Time-series SCADA telemetry sample for a turbine."""
+    __tablename__ = "scada_readings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    turbine_id = Column(String(50), nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), nullable=False, index=True,
+                       default=lambda: datetime.now(timezone.utc))
+
+    wind_speed = Column(Float, nullable=False)
+    wind_speed_std = Column(Float, nullable=True)
+    rotor_rpm = Column(Float, nullable=False)
+    pitch_angle = Column(Float, nullable=False)
+    power_kw = Column(Float, nullable=False)
+    tower_moment_knm = Column(Float, nullable=False)
+    tower_top_accel_rms = Column(Float, nullable=True)
+    blade_load_kn = Column(Float, nullable=True)
+    vibration_mms = Column(Float, nullable=True)
+    nacelle_temp_degC = Column(Float, nullable=True)
+    cumulative_damage = Column(Float, nullable=True)
+
+    def __repr__(self):
+        return f"<ScadaReading {self.turbine_id} @ {self.timestamp}>"
 
 
 class AuditLog(Base):

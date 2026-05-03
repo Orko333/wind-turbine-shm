@@ -1,5 +1,7 @@
 """Віртуальні сенсори цифрового двійника на основі фільтра Калмана для оцінки стану."""
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -169,7 +171,7 @@ async def estimate_virtual_sensors(
 
         return VirtualSensorEstimate(
             turbine_id=measurement.turbine_id,
-            timestamp="2024-01-01T00:00:00Z",  # TODO: використати реальну часову мітку
+            timestamp=datetime.now(timezone.utc).isoformat(),
             wind_speed=measurement.wind_speed,
             rotor_speed=measurement.rotor_speed,
             electrical_power=measurement.electrical_power,

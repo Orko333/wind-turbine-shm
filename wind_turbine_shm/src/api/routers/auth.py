@@ -66,7 +66,7 @@ async def register(
     db.commit()
     db.refresh(new_user)
 
-    token = create_access_token(str(new_user.id), new_user.username)
+    token = create_access_token(str(new_user.id), new_user.username, new_user.role)
     logger.info(f"Користувач '{request.username}' зареєстрований")
 
     return TokenResponse(
@@ -105,7 +105,7 @@ async def login(
             detail="Акаунт деактивовано.",
         )
 
-    token = create_access_token(str(user.id), user.username)
+    token = create_access_token(str(user.id), user.username, user.role)
     logger.info(f"Користувач '{user.username}' залогінився")
 
     return TokenResponse(
@@ -130,7 +130,7 @@ async def get_me(
         id=str(current_user.id),
         email=current_user.email,
         name=current_user.username,
-        role="engineer",  # all users are engineers for demo
+        role=current_user.role,
         created_at=current_user.created_at.isoformat(),
     )
 
@@ -140,7 +140,7 @@ async def refresh_token(
     current_user: User = Depends(get_current_user),
 ) -> TokenResponse:
     """Refresh JWT token."""
-    token = create_access_token(str(current_user.id), current_user.username)
+    token = create_access_token(str(current_user.id), current_user.username, current_user.role)
     return TokenResponse(
         access_token=token,
         token_type="bearer",

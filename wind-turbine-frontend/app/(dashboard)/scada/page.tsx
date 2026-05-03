@@ -6,6 +6,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import { useToast } from '@/hooks/useToast';
 import { RealtimeDataTable } from '@/components/scada/RealtimeDataTable';
 import { ConnectionStatus } from '@/components/scada/ConnectionStatus';
+import { HistoryChart } from '@/components/scada/HistoryChart';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -76,17 +77,14 @@ export default function SCADAPage() {
 
     setIsExporting(true);
     try {
-      const response = await getApiWithAuth<Blob>(
-        `/turbines/${selectedTurbineId}/data/export?hours=24`,
-        {
-          headers: {
-            Accept: 'text/csv',
-          },
-        }
-      );
+      const base = process.env.NEXT_PUBLIC_API_URL || 'https://test1111ww-wind-turbine-shm-api.hf.space';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const res = await fetch(`${base}/scada/export/${selectedTurbineId}.csv?hours=24`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = await res.blob();
 
-      // Створити blob and download
-      const blob = response instanceof Blob ? response : new Blob([response]);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -211,6 +209,10 @@ export default function SCADAPage() {
             previousData={previousData}
             isLoading={isLoadingTurbines}
           />
+        </section>
+
+        <section className="mt-10">
+          <HistoryChart turbineId={selectedTurbineId || null} hours={24} />
         </section>
 
         <section className="mt-12 pt-8 hairline-t">

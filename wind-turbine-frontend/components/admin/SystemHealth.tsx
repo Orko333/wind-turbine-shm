@@ -5,6 +5,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { AlertCircle, CheckCircle, Activity, AlertTriangle, RefreshCw } from 'lucide-react';
+import { getApiWithAuth } from '@/lib/api';
 
 interface ServiceStatus {
   name: string;
@@ -72,16 +73,28 @@ export function SystemHealth() {
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    // Симуляція оновлення
-    setTimeout(() => {
+    const start = Date.now();
+    try {
+      await getApiWithAuth('/health');
+      const latency = Date.now() - start;
       setServices((prev) =>
-        prev.map((service) => ({
-          ...service,
-          lastChecked: new Date().toISOString(),
-        }))
+        prev.map((service) =>
+          service.name === 'Сервер API'
+            ? { ...service, status: 'healthy', latency, lastChecked: new Date().toISOString() }
+            : { ...service, lastChecked: new Date().toISOString() }
+        )
       );
+    } catch {
+      setServices((prev) =>
+        prev.map((service) =>
+          service.name === 'Сервер API'
+            ? { ...service, status: 'down', lastChecked: new Date().toISOString() }
+            : { ...service, lastChecked: new Date().toISOString() }
+        )
+      );
+    } finally {
       setIsRefreshing(false);
-    }, 1000);
+    }
   }, []);
 
   const getStatusIcon = useCallback((status: string) => {

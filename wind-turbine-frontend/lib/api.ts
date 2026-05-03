@@ -5,7 +5,7 @@
 
 
 // Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://test1111ww-wind-turbine-shm-api.hf.space";
 const REQUEST_TIMEOUT = 30000; // 30 seconds
 
 export class ApiError extends Error {

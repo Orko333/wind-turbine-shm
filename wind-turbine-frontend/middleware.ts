@@ -29,8 +29,10 @@ const ROUTE_CONFIG: Record<string, string[]> = {
   "/": [],
   "/login": [],
   "/logout": [],
+  "/signup": [],
   "/health": [],
   "/api/auth/login": [],
+  "/api/auth/signup": [],
   "/api/auth/refresh": [],
 
   // Protected routes - auth required
@@ -166,7 +168,7 @@ export function middleware(request: NextRequest) {
 
   // Development mode: Allow access without authentication
   if (process.env.NODE_ENV === 'development') {
-    if (pathname !== '/login' && pathname !== '/logout') {
+    if (pathname !== '/login' && pathname !== '/logout' && pathname !== '/signup') {
       const requestHeaders = new Headers(request.headers);
       requestHeaders.set("x-user-id", "dev-user-123");
       requestHeaders.set("x-user-email", "dev@example.com");
@@ -191,8 +193,8 @@ export function middleware(request: NextRequest) {
 
   // If route is public, allow access
   if (isPublicRoute) {
-    // However, if user is already logged in and trying to access /login, redirect to dashboard
-    if (pathname === "/login" && token && !isTokenExpired(token)) {
+    // If user is already logged in and trying to access /login or /signup, redirect to dashboard
+    if ((pathname === "/login" || pathname === "/signup") && token && !isTokenExpired(token)) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
     return NextResponse.next();

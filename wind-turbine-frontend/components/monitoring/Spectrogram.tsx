@@ -323,9 +323,9 @@ export function Spectrogram({
       </Card>
 
       {/* Інформація про аналіз */}
-      <Card className="p-6 bg-cyan-50 border-cyan-200">
-        <h3 className="font-semibold text-cyan-900 mb-3">{t('monitoring.spectrogram.guide_title')}</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-cyan-800">
+      <Card className="p-6 surface-2 hairline border border-l-2" style={{ borderLeftColor: 'hsl(var(--signal-live))' }}>
+        <h3 className="font-semibold signal-live mb-3">{t('monitoring.spectrogram.guide_title')}</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm ink-2">
           <div>
             <p className="font-medium mb-1">{t('monitoring.spectrogram.guide_natural')}</p>
             <p>

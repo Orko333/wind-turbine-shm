@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import random
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -49,7 +49,10 @@ from .routers import (
     alerts,
 )
 from .schemas import HealthCheckResponse
-from ..database.config import init_db
+from ..database.config import init_db, get_db, SessionLocal
+from ..database.models import User, ScadaReading
+from ..auth.security import hash_password
+from ..scada.realtime_simulator import realtime_registry
 
 
 @asynccontextmanager
@@ -62,14 +65,86 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"БД недоступна, продовжуємо без неї: {e}")
 
+    # Auto-seed admin user from environment variables
+    admin_email = os.getenv("ADMIN_EMAIL")
+    admin_password = os.getenv("ADMIN_PASSWORD")
+    admin_username = os.getenv("ADMIN_USERNAME", "admin")
+    if admin_email and admin_password:
+        db = next(get_db())
+        try:
+            existing = db.query(User).filter(User.email == admin_email).first()
+            if not existing:
+                db.add(User(
+                    username=admin_username,
+                    email=admin_email,
+                    hashed_password=hash_password(admin_password),
+                    role="admin",
+                ))
+                db.commit()
+                logger.info(f"Admin user '{admin_username}' auto-created from env.")
+            else:
+                logger.info(f"Admin user '{admin_username}' already exists.")
+        except Exception as e:
+            db.rollback()
+            logger.warning(f"Could not seed admin user: {e}")
+        finally:
+            db.close()
+
     logger.info("Завантаження ML-моделей...")
     try:
         load_models("models/checkpoints")
         logger.info("Моделі завантажено — API готовий.")
     except Exception as e:
         logger.warning(f"Помилка завантаження моделей: {e}")
-    yield
-    logger.info("Завершення роботи.")
+
+    persistence_task = asyncio.create_task(_persist_readings_loop())
+    try:
+        yield
+    finally:
+        persistence_task.cancel()
+        try:
+            await persistence_task
+        except (asyncio.CancelledError, Exception):
+            pass
+        logger.info("Завершення роботи.")
+
+
+async def _persist_readings_loop() -> None:
+    """Persist one realtime SCADA sample per active turbine every 10 seconds."""
+    while True:
+        try:
+            await asyncio.sleep(10)
+            db = SessionLocal()
+            try:
+                from ..database.models import Turbine as _Turbine
+                turbine_ids = [t.turbine_id for t in db.query(_Turbine.turbine_id).all()]
+                for tid in turbine_ids:
+                    sample = realtime_registry.tick(tid)
+                    db.add(ScadaReading(
+                        turbine_id=sample.turbine_id,
+                        timestamp=datetime.now(timezone.utc),
+                        wind_speed=sample.wind_speed,
+                        wind_speed_std=sample.wind_speed_std,
+                        rotor_rpm=sample.rotor_rpm,
+                        pitch_angle=sample.pitch_angle,
+                        power_kw=sample.power_kw,
+                        tower_moment_knm=sample.tower_moment_knm,
+                        tower_top_accel_rms=sample.tower_top_accel_rms,
+                        blade_load_kn=sample.blade_load_kn,
+                        vibration_mms=sample.vibration_mms,
+                        nacelle_temp_degC=sample.nacelle_temp_degC,
+                        cumulative_damage=sample.cumulative_damage,
+                    ))
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                logger.warning(f"SCADA persistence error: {e}")
+            finally:
+                db.close()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning(f"Persistence loop error: {e}")
 
 
 app = FastAPI(
@@ -142,8 +217,8 @@ async def root() -> JSONResponse:
 @app.websocket("/ws")
 async def ws_dashboard(websocket: WebSocket) -> None:
     """
-    Generic dashboard WebSocket — keeps the connection alive and pushes mock
-    turbine telemetry for any channels the client subscribes to.
+    Dashboard WebSocket — pushes physics-based realtime SCADA samples for
+    subscribed turbines using the per-turbine simulator state.
 
     Client → server: {"type": "subscribe", "channel": "turbine:WT-001"}
     Server → client: {"type": "update",   "channel": "turbine:WT-001", "data": {...}}
@@ -157,20 +232,22 @@ async def ws_dashboard(websocket: WebSocket) -> None:
             await asyncio.sleep(2)
             for channel in list(subscriptions):
                 turbine_id = channel.split(":", 1)[1] if ":" in channel else channel
+                sample = realtime_registry.tick(turbine_id)
                 payload = {
                     "type": "update",
                     "channel": channel,
                     "data": {
-                        "turbine_id": turbine_id,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "power_kw": round(random.uniform(800, 2400), 1),
-                        "wind_speed": round(random.uniform(3, 18), 2),
-                        "rotor_rpm": round(random.uniform(8, 14), 2),
-                        "pitch_angle": round(random.uniform(-2, 25), 2),
-                        "tower_moment_knm": round(random.uniform(5000, 15000), 1),
-                        "blade_load_kn": round(random.uniform(20, 80), 1),
-                        "vibration_mms": round(random.uniform(0.5, 7), 2),
-                        "temperature_c": round(random.uniform(20, 70), 1),
+                        "turbine_id": sample.turbine_id,
+                        "timestamp": sample.timestamp,
+                        "power_kw": sample.power_kw,
+                        "wind_speed": sample.wind_speed,
+                        "rotor_rpm": sample.rotor_rpm,
+                        "pitch_angle": sample.pitch_angle,
+                        "tower_moment_knm": sample.tower_moment_knm,
+                        "blade_load_kn": sample.blade_load_kn,
+                        "vibration_mms": sample.vibration_mms,
+                        "temperature_c": sample.temperature_c,
+                        "cumulative_damage": sample.cumulative_damage,
                     },
                 }
                 try:

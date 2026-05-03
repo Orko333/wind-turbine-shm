@@ -74,12 +74,12 @@ export function WakeEffects({
     const animate = () => {
       frameCount++;
 
-      // Очищення canvas
-      ctx.fillStyle = '#f8fafc';
+      // Очищення canvas — warm graphite surface-1
+      ctx.fillStyle = 'hsl(28, 9%, 8%)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Малювання фону сітки
-      ctx.strokeStyle = '#e2e8f0';
+      // Малювання фону сітки — hairline
+      ctx.strokeStyle = 'hsl(28, 8%, 14%)';
       ctx.lineWidth = 1;
       for (let x = 0; x < canvas.width; x += 50) {
         ctx.beginPath();
@@ -98,11 +98,11 @@ export function WakeEffects({
       const centerX = canvas.width / 2;
       const centerY = 30;
       ctx.save();
-      ctx.fillStyle = '#475569';
-      ctx.font = 'bold 12px Arial';
+      ctx.fillStyle = 'hsl(36, 8%, 68%)';
+      ctx.font = '500 11px ui-monospace, monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(`Wind Direction: ${windDirection}°`, centerX, centerY);
-      ctx.fillText(`Wind Speed: ${windSpeed.toFixed(1)} m/s`, centerX, centerY + 20);
+      ctx.fillText(`WIND ${windDirection}°`, centerX, centerY);
+      ctx.fillText(`${windSpeed.toFixed(1)} M/S`, centerX, centerY + 16);
       ctx.restore();
 
       // Малювання стрілки напряму вітру
@@ -112,8 +112,8 @@ export function WakeEffects({
       const arrowEndX = arrowStartX + arrowLength * Math.cos(flowAngle);
       const arrowEndY = arrowStartY + arrowLength * Math.sin(flowAngle);
 
-      ctx.strokeStyle = '#f97316';
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'hsl(38, 90%, 58%)';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(arrowStartX, arrowStartY);
       ctx.lineTo(arrowEndX, arrowEndY);
@@ -154,11 +154,11 @@ export function WakeEffects({
         p.y += p.vy;
         p.life -= 0.01;
 
-        // Малювання частинки
-        ctx.globalAlpha = p.life * 0.5;
-        ctx.fillStyle = '#10b981';
+        // Малювання частинки — teal signal-live
+        ctx.globalAlpha = p.life * 0.45;
+        ctx.fillStyle = 'hsl(168, 60%, 56%)';
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
 
@@ -167,22 +167,22 @@ export function WakeEffects({
 
       // Малювання турбін
       turbines.forEach((turbine) => {
-        // Коло турбіни
-        ctx.fillStyle = '#3b82f6';
+        // Коло турбіни — surface-3 з amber halo
+        ctx.fillStyle = 'hsl(24, 7%, 15%)';
         ctx.beginPath();
-        ctx.arc(turbine.x, turbine.y, 15, 0, Math.PI * 2);
+        ctx.arc(turbine.x, turbine.y, 14, 0, Math.PI * 2);
         ctx.fill();
 
-        // Ротор
-        ctx.strokeStyle = '#1f2937';
-        ctx.lineWidth = 2;
+        // Ротор — hairline-strong
+        ctx.strokeStyle = 'hsl(28, 8%, 22%)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.arc(turbine.x, turbine.y, 12, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Лопаті ротора
-        ctx.strokeStyle = '#60a5fa';
-        ctx.lineWidth = 2;
+        // Лопаті ротора — amber primary
+        ctx.strokeStyle = 'hsl(38, 90%, 58%)';
+        ctx.lineWidth = 1.5;
         const bladeAngle = (frameCount * 0.05) % Math.PI;
         for (let i = 0; i < 3; i++) {
           const angle = bladeAngle + (i * Math.PI * 2) / 3;
@@ -195,25 +195,25 @@ export function WakeEffects({
           ctx.stroke();
         }
 
-        // Дефіцит швидкості вітру (тінь сліду)
+        // Дефіцит швидкості вітру (тінь сліду) — signal-crit gradient
         const wakeIntensity = 0.3;
         const wakeRadius = 40;
         const gradient = ctx.createRadialGradient(turbine.x, turbine.y, 0, turbine.x, turbine.y, wakeRadius);
-        gradient.addColorStop(0, `rgba(239, 68, 68, ${wakeIntensity * 0.5})`);
-        gradient.addColorStop(1, `rgba(239, 68, 68, 0)`);
+        gradient.addColorStop(0, `hsla(6, 72%, 62%, ${wakeIntensity * 0.4})`);
+        gradient.addColorStop(1, `hsla(6, 72%, 62%, 0)`);
         ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(turbine.x, turbine.y, wakeRadius, 0, Math.PI * 2);
         ctx.fill();
 
-        // Підпис
-        ctx.fillStyle = '#1f2937';
-        ctx.font = 'bold 11px Arial';
+        // Підпис — mono ID + ink-3
+        ctx.fillStyle = 'hsl(40, 12%, 92%)';
+        ctx.font = '500 10px ui-monospace, monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(turbine.turbine_id, turbine.x, turbine.y + 30);
-        ctx.font = '10px Arial';
-        ctx.fillStyle = '#64748b';
-        ctx.fillText(`${turbine.wind_speed.toFixed(1)} m/s`, turbine.x, turbine.y + 42);
+        ctx.fillText(turbine.turbine_id, turbine.x, turbine.y + 32);
+        ctx.font = '9px ui-monospace, monospace';
+        ctx.fillStyle = 'hsl(32, 6%, 46%)';
+        ctx.fillText(`${turbine.wind_speed.toFixed(1)} m/s`, turbine.x, turbine.y + 44);
       });
 
       requestAnimationFrame(animate);

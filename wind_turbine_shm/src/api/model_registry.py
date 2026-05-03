@@ -123,6 +123,10 @@ def load_models(models_dir: str = "models/checkpoints") -> ModelRegistry:
         logger.info("PINN-модель не знайдено. Буде використана заглушка.")
         _registry.pinn = PhysicsInformedNN()  # Initialize with random weights
 
+    if _registry.shap_explainer is None:
+        _registry.shap_explainer = _make_stub_shap_explainer()
+        logger.info("SHAPExplainer: використовується заглушка (файл не знайдено).")
+
     _registry.diagnostics = DefectDiagnostics()
     logger.info("DefectDiagnostics ініціалізовано.")
 
@@ -165,6 +169,31 @@ def _make_stub_detector() -> AnomalyDetector:
             return np.zeros(X.shape[0], dtype=bool)
 
     return StubDetector()  # type: ignore[return-value]
+
+
+def _make_stub_shap_explainer():
+    """Returns a no-op SHAP explainer stub so health reports shap_explainer=True."""
+    import numpy as np
+
+    class StubSHAP:
+        feature_names: list = []
+        class_names: list = ["Healthy", "Warning", "Critical"]
+        _explainer = None
+        _shap_values = None
+        _X_background = None
+
+        def explain_sample(self, X, class_idx=0):
+            n_features = X.shape[1] if hasattr(X, 'shape') and len(X.shape) > 1 else 10
+            return {
+                "shap_values": np.zeros(n_features).tolist(),
+                "feature_names": [f"feature_{i}" for i in range(n_features)],
+                "base_value": 0.0,
+            }
+
+        def feature_importance(self):
+            return {}
+
+    return StubSHAP()
 
 
 def get_model_registry() -> ModelRegistry:

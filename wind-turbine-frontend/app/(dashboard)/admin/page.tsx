@@ -73,16 +73,17 @@ export default function AdminPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as AdminTab)}
-                className={`p-4 rounded-lg border-2 text-left transition-colors ${
+                className={`relative p-4 rounded-lg border text-left transition-all ${
                   isActive
-                    ? 'border-blue-500 surface-2'
-                    : 'hairline surface-1 hover:hairline'
+                    ? 'surface-2 hairline border-l-2 glow-amber'
+                    : 'hairline surface-1 hover:surface-2'
                 }`}
+                style={isActive ? { borderLeftColor: 'hsl(var(--primary))' } : undefined}
               >
                 <div className="flex items-start gap-3">
                   <Icon
-                    className={`w-5 h-5 mt-1 flex-shrink-0 ${
-                      isActive ? 'signal-live' : 'text-gray-400'
+                    className={`w-5 h-5 mt-1 flex-shrink-0 transition-colors ${
+                      isActive ? 'signal-warn' : 'ink-4'
                     }`}
                   />
                   <div className="flex-1">

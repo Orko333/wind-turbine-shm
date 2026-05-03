@@ -17,6 +17,9 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await upstream.json();
+    if (upstream.ok) {
+      return NextResponse.json({ ...data, access_token: token }, { status: 200 });
+    }
     return NextResponse.json(data, { status: upstream.status });
   } catch {
     return NextResponse.json({ message: 'Server error' }, { status: 500 });

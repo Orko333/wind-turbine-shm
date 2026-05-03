@@ -37,10 +37,7 @@ export interface TurbineDetail extends Turbine {
   tower_height: number;
   rotor_diameter: number;
   rated_power_kw: number;
-  location: {
-    latitude: number;
-    longitude: number;
-  };
+  location: string | null;
 }
 
 export interface TurbineRealtimeData {

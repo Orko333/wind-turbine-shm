@@ -90,94 +90,54 @@ export function OffshoreLoading({
         {/* Візуальна діаграма */}
         <div className="surface-2 rounded-lg p-6">
           <svg viewBox="0 0 400 300" className="w-full h-auto max-h-80">
-            {/* Небо */}
-            <rect width="400" height="120" fill="#e0f2fe" />
+            {/* Небо — surface-1 darker */}
+            <rect width="400" height="120" fill="hsl(28, 9%, 8%)" />
 
-            {/* Вода */}
-            <rect y="120" width="400" height="180" fill="#0284c7" />
+            {/* Вода — surface-2 + subtle teal hint */}
+            <defs>
+              <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(168, 30%, 14%)" />
+                <stop offset="100%" stopColor="hsl(26, 8%, 11%)" />
+              </linearGradient>
+              <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                <polygon points="0 0, 10 3, 0 6" fill="hsl(38, 90%, 58%)" />
+              </marker>
+            </defs>
+            <rect y="120" width="400" height="180" fill="url(#waterGrad)" />
 
-            {/* Ефект анімації хвилі */}
+            {/* Ефект анімації хвилі — teal signal-live */}
             <path
               d="M 0 120 Q 50 110 100 120 T 200 120 T 300 120 T 400 120"
-              stroke="#06b6d4"
-              strokeWidth="3"
+              stroke="hsl(168, 60%, 56%)"
+              strokeWidth="1.5"
+              strokeOpacity="0.7"
               fill="none"
             />
 
-            {/* Башта */}
-            <rect x="175" y="80" width="50" height="200" fill="#64748b" />
+            {/* Башта — ink-3 */}
+            <rect x="175" y="80" width="50" height="200" fill="hsl(32, 6%, 46%)" />
 
-            {/* Ротор */}
-            <circle cx="200" cy="70" r="25" fill="#f97316" />
-            <line x1="175" y1="70" x2="225" y2="70" stroke="#1f2937" strokeWidth="2" />
+            {/* Ротор — amber primary */}
+            <circle cx="200" cy="70" r="25" fill="hsl(38, 90%, 58%)" />
+            <circle cx="200" cy="70" r="25" fill="none" stroke="hsl(28, 9%, 8%)" strokeWidth="1" />
+            <line x1="175" y1="70" x2="225" y2="70" stroke="hsl(28, 9%, 8%)" strokeWidth="1.5" />
 
-            {/* Лінія глибини води */}
-            <line
-              x1="30"
-              y1="260"
-              x2="370"
-              y2="260"
-              stroke="#1e40af"
-              strokeWidth="2"
-              strokeDasharray="5 5"
-            />
-            <text x="10" y="265" fontSize="12" fill="#1e40af" fontWeight="bold">
-              {t('physics.seabed')}
+            {/* Лінія глибини води — hairline-strong dashed */}
+            <line x1="30" y1="260" x2="370" y2="260" stroke="hsl(28, 8%, 22%)" strokeWidth="1" strokeDasharray="4 4" />
+            <text x="10" y="265" fontSize="9" letterSpacing="2" fill="hsl(32, 6%, 46%)" fontFamily="ui-monospace, monospace">
+              {(t('physics.seabed') || 'SEABED').toUpperCase()}
             </text>
 
-            {/* Індикатор висоти хвилі */}
-            <line
-              x1="20"
-              y1="120"
-              x2="20"
-              y2="100"
-              stroke="#059669"
-              strokeWidth="2"
-            />
-            <line
-              x1="15"
-              y1="120"
-              x2="25"
-              y2="120"
-              stroke="#059669"
-              strokeWidth="2"
-            />
-            <line
-              x1="15"
-              y1="100"
-              x2="25"
-              y2="100"
-              stroke="#059669"
-              strokeWidth="2"
-            />
-            <text x="5" y="112" fontSize="11" fill="#059669" fontWeight="bold">
-              H
-            </text>
+            {/* Індикатор висоти хвилі — signal-live */}
+            <line x1="20" y1="120" x2="20" y2="100" stroke="hsl(168, 60%, 56%)" strokeWidth="1.5" />
+            <line x1="15" y1="120" x2="25" y2="120" stroke="hsl(168, 60%, 56%)" strokeWidth="1.5" />
+            <line x1="15" y1="100" x2="25" y2="100" stroke="hsl(168, 60%, 56%)" strokeWidth="1.5" />
+            <text x="5" y="112" fontSize="10" fill="hsl(168, 60%, 56%)" fontFamily="ui-monospace, monospace">H</text>
 
-            {/* Стрілка течії */}
-            <defs>
-              <marker
-                id="arrowhead"
-                markerWidth="10"
-                markerHeight="10"
-                refX="9"
-                refY="3"
-                orient="auto"
-              >
-                <polygon points="0 0, 10 3, 0 6" fill="hsl(38 90% 58%)" />
-              </marker>
-            </defs>
-            <line
-              x1="120"
-              y1="180"
-              x2="280"
-              y2="180"
-              stroke="hsl(38 90% 58%)"
-              strokeWidth="3"
-              markerEnd="url(#arrowhead)"
-            />
-            <text x="190" y="200" fontSize="12" fill="#92400e" fontWeight="bold">
-              {t('physics.current')}
+            {/* Стрілка течії — amber */}
+            <line x1="120" y1="180" x2="280" y2="180" stroke="hsl(38, 90%, 58%)" strokeWidth="2" markerEnd="url(#arrowhead)" />
+            <text x="190" y="200" fontSize="9" letterSpacing="2" fill="hsl(38, 90%, 58%)" fontFamily="ui-monospace, monospace">
+              {(t('physics.current') || 'CURRENT').toUpperCase()}
             </text>
           </svg>
         </div>
@@ -193,7 +153,7 @@ export function OffshoreLoading({
           </div>
 
           <div className="p-4 rounded-lg border hairline surface-2">
-            <p className="text-sm text-purple-700 font-medium">{t('physics.inertia_force')}</p>
+            <p className="text-sm signal-live font-medium">{t('physics.inertia_force')}</p>
             <p className="text-2xl font-bold ink-1 mt-2">
               {morissonLoads.inertiaForce.toFixed(1)} kN
             </p>
@@ -232,8 +192,8 @@ export function OffshoreLoading({
         </div>
 
         {/* Інформація */}
-        <div className="p-4 rounded-lg bg-cyan-50 border border-cyan-200">
-          <p className="text-sm text-cyan-900">
+        <div className="p-4 rounded-lg surface-2 hairline border border-l-2" style={{ borderLeftColor: 'hsl(var(--signal-live))' }}>
+          <p className="text-sm ink-2">
             {t('physics.morison_info')}
           </p>
         </div>

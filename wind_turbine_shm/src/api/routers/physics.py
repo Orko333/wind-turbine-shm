@@ -153,7 +153,10 @@ async def calculate_aerodynamic_state(
         raise HTTPException(status_code=404, detail="Turbine not found")
 
     if request.turbine_id not in aero_models:
-        raise HTTPException(status_code=503, detail="Aerodynamic model not configured")
+        aero_models[request.turbine_id] = AerodynamicModel(
+            rotor_diameter=112.0, tower_height=100.0, rated_power=3000.0,
+            rated_wind_speed=12.5, cut_in_speed=3.5, cut_out_speed=25.0,
+        )
 
     try:
         model = aero_models[request.turbine_id]
@@ -198,7 +201,10 @@ async def calculate_tower_load(
         raise HTTPException(status_code=404, detail="Turbine not found")
 
     if request.turbine_id not in aero_models:
-        raise HTTPException(status_code=503, detail="Aerodynamic model not configured")
+        aero_models[request.turbine_id] = AerodynamicModel(
+            rotor_diameter=112.0, tower_height=100.0, rated_power=3000.0,
+            rated_wind_speed=12.5, cut_in_speed=3.5, cut_out_speed=25.0,
+        )
 
     try:
         model = aero_models[request.turbine_id]
@@ -253,7 +259,10 @@ async def calculate_power_curve(
         raise HTTPException(status_code=404, detail="Turbine not found")
 
     if turbine_id not in aero_models:
-        raise HTTPException(status_code=503, detail="Aerodynamic model not configured")
+        aero_models[turbine_id] = AerodynamicModel(
+            rotor_diameter=112.0, tower_height=100.0, rated_power=3000.0,
+            rated_wind_speed=12.5, cut_in_speed=3.5, cut_out_speed=25.0,
+        )
 
     try:
         model = aero_models[turbine_id]
@@ -303,7 +312,10 @@ async def calculate_wind_shear(
         raise HTTPException(status_code=404, detail="Turbine not found")
 
     if turbine_id not in aero_models:
-        raise HTTPException(status_code=503, detail="Aerodynamic model not configured")
+        aero_models[turbine_id] = AerodynamicModel(
+            rotor_diameter=112.0, tower_height=100.0, rated_power=3000.0,
+            rated_wind_speed=12.5, cut_in_speed=3.5, cut_out_speed=25.0,
+        )
 
     try:
         model = aero_models[turbine_id]
@@ -317,7 +329,7 @@ async def calculate_wind_shear(
         stress_amplitude = wind_profile.wind_shear_stress(
             model.tower_height,
             model.rotor_diameter,
-            ct=0.8,
+            thrust_coefficient=0.8,
         )
 
         logger.info(

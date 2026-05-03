@@ -167,9 +167,9 @@ export default function HealthPage() {
                 {bladeCondition.ice_percent.toFixed(1)}%
               </span>
             </div>
-            <div className="bg-muted rounded-full h-3 overflow-hidden">
+            <div className="surface-3 rounded-full h-3 overflow-hidden">
               <div
-                className="h-full bg-cyan-500 transition-all"
+                className="h-full bg-live transition-all"
                 style={{ width: `${bladeCondition.ice_percent}%` }}
               />
             </div>

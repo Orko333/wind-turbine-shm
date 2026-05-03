@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 import type { Turbine, TurbineDetail } from '@/types/api';
@@ -16,7 +16,22 @@ interface SystemMapProps {
   zoom?: number;
 }
 
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+const DARK_STYLE = {
+  version: 8 as const,
+  sources: {
+    carto: {
+      type: 'raster' as const,
+      tiles: [
+        'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+        'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+      ],
+      tileSize: 256,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+    },
+  },
+  layers: [{ id: 'carto-dark', type: 'raster' as const, source: 'carto' }],
+};
 
 export function SystemMap({
   turbines,
@@ -27,17 +42,16 @@ export function SystemMap({
   const t = useT();
   const router = useRouter();
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
+  const map = useRef<maplibregl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const markers = useRef<mapboxgl.Marker[]>([]);
+  const markers = useRef<maplibregl.Marker[]>([]);
 
   useEffect(() => {
-    if (!MAPBOX_TOKEN || !mapContainer.current) return;
-    mapboxgl.accessToken = MAPBOX_TOKEN;
+    if (!mapContainer.current) return;
     try {
-      map.current = new mapboxgl.Map({
+      map.current = new maplibregl.Map({
         container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/dark-v11',
+        style: DARK_STYLE,
         center: [center.longitude, center.latitude],
         zoom,
       });
@@ -61,11 +75,15 @@ export function SystemMap({
     };
 
     turbines.forEach((t) => {
-      const loc = 'location' in t ? t.location : null;
-      const { latitude, longitude } = loc || {
-        latitude: 51.5074 + Math.random() * 2 - 1,
-        longitude: -0.1278 + Math.random() * 2 - 1,
-      };
+      const rawLoc = 'location' in t ? t.location : null;
+      const isCoord = rawLoc && typeof rawLoc === 'object' && 'latitude' in rawLoc && 'longitude' in rawLoc;
+      const latitude = isCoord
+        ? (rawLoc as { latitude: number; longitude: number }).latitude
+        : 51.5074 + Math.random() * 4 - 2;
+      const longitude = isCoord
+        ? (rawLoc as { latitude: number; longitude: number }).longitude
+        : -0.1278 + Math.random() * 4 - 2;
+      if (!isFinite(latitude) || !isFinite(longitude)) return;
 
       const c = colors[t.status as keyof typeof colors] ?? colors.offline;
 
@@ -77,30 +95,13 @@ export function SystemMap({
       el.style.background = c;
       el.style.boxShadow = `0 0 0 2px hsl(30 10% 5%), 0 0 12px ${c}`;
 
-      new mapboxgl.Marker(el)
+      new maplibregl.Marker(el)
         .setLngLat([longitude, latitude])
         .addTo(map.current!);
 
       el.addEventListener('click', () => router.push(`/turbines/${t.turbine_id}`));
     });
   }, [turbines, mapLoaded, router]);
-
-  if (!MAPBOX_TOKEN) {
-    return (
-      <section>
-        <header className="flex items-end justify-between pb-4 hairline-b">
-          <div>
-            <p className="eyebrow">{t('dashboard.map.eyebrow')}</p>
-            <h3 className="display text-2xl ink-1 mt-1">{t('dashboard.map.title')}</h3>
-          </div>
-        </header>
-        <div className="h-72 flex flex-col items-center justify-center surface-1 hairline border rounded-lg">
-          <p className="mono text-[11px] tracking-widest ink-3">{t('dashboard.map.no_token')}</p>
-          <p className="text-xs ink-4 mt-2">{t('dashboard.map.no_token_desc')}</p>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section>
