@@ -54,8 +54,10 @@ async def create_turbine(
     db: Session = Depends(get_db),
 ) -> TurbineDetailResponse:
     """Create a new turbine."""
-    # Check if turbine already exists
-    existing = db.query(Turbine).filter(Turbine.turbine_id == request.turbine_id).first()
+    # Check if turbine already exists for this user
+    existing = db.query(Turbine).filter(
+        (Turbine.turbine_id == request.turbine_id) & (Turbine.owner_id == current_user.id)
+    ).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

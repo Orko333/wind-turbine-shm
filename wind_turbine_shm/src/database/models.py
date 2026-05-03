@@ -80,7 +80,7 @@ class Turbine(Base):
     __tablename__ = "turbines"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    turbine_id = Column(String(50), unique=True, nullable=False, index=True)
+    turbine_id = Column(String(50), nullable=False, index=True)
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
     # Метадані
