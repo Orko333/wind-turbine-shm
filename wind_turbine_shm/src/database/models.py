@@ -1,12 +1,61 @@
 """Моделі бази даних SQLAlchemy."""
 
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Text, ForeignKey, Enum
-from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+import json as _json
+import os as _os
 import uuid
+from datetime import datetime, timezone
+
+from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy.orm import relationship
+from sqlalchemy.types import TypeDecorator
 
 from .config import Base
+
+
+class _UUIDType(TypeDecorator):
+    """UUID stored as VARCHAR(36) — works with SQLite and PostgreSQL."""
+    impl = String(36)
+    cache_ok = True
+
+    def __init__(self, as_uuid: bool = False, **kw):
+        self.as_uuid = as_uuid
+        super().__init__(**kw)
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        return uuid.UUID(str(value)) if self.as_uuid else str(value)
+
+
+class _JSONType(TypeDecorator):
+    """JSON stored as TEXT — works with SQLite and PostgreSQL."""
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        return _json.dumps(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if isinstance(value, str):
+            return _json.loads(value)
+        return value
+
+
+_DATABASE_URL = _os.getenv("DATABASE_URL", "sqlite:///./wind_turbine.db")
+if _DATABASE_URL.startswith("postgresql"):
+    from sqlalchemy.dialects.postgresql import UUID, JSONB  # type: ignore[assignment]
+else:
+    UUID = _UUIDType   # type: ignore[misc,assignment]
+    JSONB = _JSONType  # type: ignore[misc,assignment]
 
 
 class User(Base):

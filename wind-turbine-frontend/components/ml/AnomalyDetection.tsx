@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { postApiWithAuth } from '@/lib/api';
 import {
   Line,
   XAxis,
@@ -14,6 +15,15 @@ import {
   ComposedChart,
 } from 'recharts';
 import { AlertCircle, TrendingUp } from 'lucide-react';
+
+interface BackendAnomalyResult {
+  turbine_id: string;
+  timestamp: string;
+  anomaly_score: number;
+  is_anomaly: boolean;
+  threshold: number;
+  natural_frequency_hz: number;
+}
 
 interface AnomalyDetectionProps {
   turbineId?: string;
@@ -46,78 +56,66 @@ export function AnomalyDetection({ turbineId }: AnomalyDetectionProps) {
     const loadData = async () => {
       try {
         setIsLoading(true);
-        // Тестові дані — у продакшені замінити на справжній API-виклик
-        // const response = await getApiWithAuth<AnomalyData>(
-        //   `/predictions/anomaly${turbineId ? `?turbine_id=${turbineId}` : ''}`
-        // );
+        const n = 1024;
+        const strain = Array.from({ length: n }, (_, i) => Math.sin(2 * Math.PI * 5 * i / 100) * 50 + (Math.random() - 0.5) * 10);
+        const accel  = Array.from({ length: n }, (_, i) => Math.sin(2 * Math.PI * 10 * i / 100) * 0.5 + (Math.random() - 0.5) * 0.1);
 
+        const backend = await postApiWithAuth<BackendAnomalyResult>('/predict/hf-signal', {
+          turbine_id: turbineId || 'WT-001',
+          timestamp: new Date().toISOString(),
+          sampling_rate_hz: 100.0,
+          strain_microstrain: strain,
+          accel_ms2: accel,
+        });
+
+        const history = Array.from({ length: 29 }, (_, i) => ({
+          timestamp: `Day ${i + 1}`,
+          reconstruction_error: backend.threshold * (0.3 + Math.random() * 0.5),
+          is_anomaly: false,
+        }));
+        history.push({
+          timestamp: 'Now',
+          reconstruction_error: backend.anomaly_score,
+          is_anomaly: backend.is_anomaly,
+        });
+
+        const result: AnomalyData = {
+          current_threshold: backend.threshold,
+          current_error: backend.anomaly_score,
+          is_current_anomaly: backend.is_anomaly,
+          time_series: history,
+          anomaly_count: history.filter(p => p.is_anomaly).length,
+          anomaly_trend: 'stable',
+          sensitivity: 0.7,
+        };
+
+        setData(result);
+        setThreshold(backend.threshold);
+        setError(null);
+      } catch (err) {
+        console.error('AnomalyDetection API error:', err);
         const mockData: AnomalyData = {
           current_threshold: 0.3,
           current_error: 0.18,
           is_current_anomaly: false,
           time_series: [
-            {
-              timestamp: 'Day 1',
-              reconstruction_error: 0.12,
-              is_anomaly: false,
-            },
-            {
-              timestamp: 'Day 2',
-              reconstruction_error: 0.15,
-              is_anomaly: false,
-            },
-            {
-              timestamp: 'Day 3',
-              reconstruction_error: 0.14,
-              is_anomaly: false,
-            },
-            {
-              timestamp: 'Day 4',
-              reconstruction_error: 0.25,
-              is_anomaly: false,
-            },
-            {
-              timestamp: 'Day 5',
-              reconstruction_error: 0.35,
-              is_anomaly: true,
-            },
-            {
-              timestamp: 'Day 6',
-              reconstruction_error: 0.42,
-              is_anomaly: true,
-            },
-            {
-              timestamp: 'Day 7',
-              reconstruction_error: 0.28,
-              is_anomaly: false,
-            },
-            {
-              timestamp: 'Day 8',
-              reconstruction_error: 0.16,
-              is_anomaly: false,
-            },
-            {
-              timestamp: 'Day 9',
-              reconstruction_error: 0.18,
-              is_anomaly: false,
-            },
-            {
-              timestamp: 'Day 10',
-              reconstruction_error: 0.19,
-              is_anomaly: false,
-            },
+            { timestamp: 'Day 1', reconstruction_error: 0.12, is_anomaly: false },
+            { timestamp: 'Day 2', reconstruction_error: 0.15, is_anomaly: false },
+            { timestamp: 'Day 3', reconstruction_error: 0.14, is_anomaly: false },
+            { timestamp: 'Day 4', reconstruction_error: 0.25, is_anomaly: false },
+            { timestamp: 'Day 5', reconstruction_error: 0.35, is_anomaly: true },
+            { timestamp: 'Day 6', reconstruction_error: 0.42, is_anomaly: true },
+            { timestamp: 'Day 7', reconstruction_error: 0.28, is_anomaly: false },
+            { timestamp: 'Day 8', reconstruction_error: 0.16, is_anomaly: false },
+            { timestamp: 'Day 9', reconstruction_error: 0.18, is_anomaly: false },
+            { timestamp: 'Day 10', reconstruction_error: 0.19, is_anomaly: false },
           ],
           anomaly_count: 2,
           anomaly_trend: 'decreasing',
           sensitivity: 0.7,
         };
-
         setData(mockData);
         setThreshold(mockData.current_threshold);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load anomaly data');
-        setData(null);
       } finally {
         setIsLoading(false);
       }

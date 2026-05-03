@@ -204,6 +204,42 @@ def _turbine_to_dashboard(t: Turbine) -> dict:
     }
 
 
+_DEMO_TURBINES = [
+    {"turbine_id": "WT-001", "name": "Wind Turbine 001", "location": "North Field",  "manufacturer": "Vestas",  "model": "V150-4.5",   "rated_power_kw": 4500, "alert_level": "GREEN",  "cumulative_damage": 0.08},
+    {"turbine_id": "WT-002", "name": "Wind Turbine 002", "location": "North Field",  "manufacturer": "Vestas",  "model": "V150-4.5",   "rated_power_kw": 4500, "alert_level": "GREEN",  "cumulative_damage": 0.12},
+    {"turbine_id": "WT-003", "name": "Wind Turbine 003", "location": "South Ridge",  "manufacturer": "Siemens", "model": "SG 5.0-145", "rated_power_kw": 5000, "alert_level": "YELLOW", "cumulative_damage": 0.31},
+    {"turbine_id": "WT-004", "name": "Wind Turbine 004", "location": "South Ridge",  "manufacturer": "Siemens", "model": "SG 5.0-145", "rated_power_kw": 5000, "alert_level": "GREEN",  "cumulative_damage": 0.15},
+    {"turbine_id": "WT-005", "name": "Wind Turbine 005", "location": "East Hill",    "manufacturer": "GE",      "model": "Haliade-X",  "rated_power_kw": 6000, "alert_level": "ORANGE", "cumulative_damage": 0.52},
+    {"turbine_id": "WT-006", "name": "Wind Turbine 006", "location": "East Hill",    "manufacturer": "GE",      "model": "Haliade-X",  "rated_power_kw": 6000, "alert_level": "GREEN",  "cumulative_damage": 0.09},
+    {"turbine_id": "WT-007", "name": "Wind Turbine 007", "location": "West Coast",   "manufacturer": "Nordex",  "model": "N163/5.X",   "rated_power_kw": 5700, "alert_level": "RED",    "cumulative_damage": 0.78},
+    {"turbine_id": "WT-008", "name": "Wind Turbine 008", "location": "West Coast",   "manufacturer": "Nordex",  "model": "N163/5.X",   "rated_power_kw": 5700, "alert_level": "GREEN",  "cumulative_damage": 0.11},
+]
+
+
+def _ensure_demo_turbines(db: Session, user: User) -> None:
+    """Auto-create demo turbines for a user that has none (demo/ephemeral-DB mode)."""
+    for td in _DEMO_TURBINES:
+        exists = db.query(Turbine).filter(
+            (Turbine.turbine_id == td["turbine_id"]) & (Turbine.owner_id == user.id)
+        ).first()
+        if not exists:
+            db.add(Turbine(
+                turbine_id=td["turbine_id"],
+                owner_id=user.id,
+                name=td["name"],
+                location=td["location"],
+                manufacturer=td["manufacturer"],
+                model=td["model"],
+                rated_power_kw=td["rated_power_kw"],
+                alert_level=td["alert_level"],
+                cumulative_damage=td["cumulative_damage"],
+                damage_fraction=td["cumulative_damage"],
+                rul_days=round(365 * 20 * (1 - td["cumulative_damage"]), 0),
+                installation_date=datetime(2018, 6, 1, tzinfo=timezone.utc),
+            ))
+    db.commit()
+
+
 @router.get("/")
 async def list_turbines(
     page: int = Query(1, ge=1),
@@ -215,6 +251,8 @@ async def list_turbines(
 ) -> dict:
     """List turbines for the current user with pagination."""
     q = db.query(Turbine).filter(Turbine.owner_id == current_user.id)
+    if q.count() == 0:
+        _ensure_demo_turbines(db, current_user)
     if location:
         q = q.filter(Turbine.location.ilike(f"%{location}%"))
     total = q.count()

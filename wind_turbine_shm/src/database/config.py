@@ -6,14 +6,17 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from loguru import logger
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/wind_turbine_shm")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./wind_turbine.db")
 SQLALCHEMY_ECHO = os.getenv("SQLALCHEMY_ECHO", "false").lower() == "true"
+
+_connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {"connect_timeout": 10}
 
 engine = create_engine(
     DATABASE_URL,
     echo=SQLALCHEMY_ECHO,
     pool_pre_ping=True,
     pool_recycle=3600,
+    connect_args=_connect_args,
 )
 
 SessionLocal = sessionmaker(

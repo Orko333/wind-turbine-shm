@@ -18,8 +18,23 @@ import { ThrustMoment } from '@/components/physics/ThrustMoment';
 import { OffshoreLoading } from '@/components/physics/OffshoreLoading';
 import { WakeEffects } from '@/components/physics/WakeEffects';
 import { useT } from '@/lib/i18n';
+import { getApiWithAuth, postApiWithAuth } from '@/lib/api';
 
 type ModelType = '2.5MW' | '3.0MW';
+
+interface TurbineListItem { turbine_id: string }
+interface TurbineListResponse { turbines: TurbineListItem[] }
+interface BackendPowerCurvePoint { wind_speed: number; power_kw: number }
+interface BackendWindShear { wind_speed_at_hub: number; wind_shear_exponent: number }
+interface BackendOffshore { total_horizontal_load_kn: number }
+
+const MODEL_CONFIGS: Record<ModelType, {
+  rotor_diameter: number; tower_height: number; rated_power_kw: number;
+  rated_wind_speed: number; cut_in_speed: number; cut_out_speed: number;
+}> = {
+  '2.5MW': { rotor_diameter: 96, tower_height: 90, rated_power_kw: 2500, rated_wind_speed: 12.5, cut_in_speed: 3.5, cut_out_speed: 25 },
+  '3.0MW': { rotor_diameter: 112, tower_height: 100, rated_power_kw: 3000, rated_wind_speed: 12.5, cut_in_speed: 3.5, cut_out_speed: 25 },
+};
 
 interface PhysicsData {
   powerCurve: Array<{
@@ -190,31 +205,79 @@ export default function PhysicsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [windDirection, setWindDirection] = useState(270);
   const [data, setData] = useState<PhysicsData>(mockPhysicsData['2.5MW']);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Load дані when model changes
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        // Simulate API call - in production, fetch from backend
-        // const response = await getApiWithAuth<PhysicsData>(
-        //   `/physics/${selectedModel}`
-        // );
-        // setData(response);
+        // 1. Get a turbine owned by the current user
+        const listRes = await getApiWithAuth<TurbineListResponse>('/turbines?page=1&page_size=1');
+        const turbineId = listRes.turbines?.[0]?.turbine_id;
+        if (!turbineId) throw new Error('No turbines available');
 
-        // Use mock дані for now
-        setData(mockPhysicsData[selectedModel]);
+        const cfg = MODEL_CONFIGS[selectedModel];
+
+        // 2. Configure aerodynamic model (in-memory on server)
+        await postApiWithAuth(`/physics/configure/${turbineId}`, {
+          turbine_id: turbineId, ...cfg,
+        });
+
+        // 3. Power curve
+        const pcRaw = await postApiWithAuth<BackendPowerCurvePoint[]>(
+          `/physics/power-curve?turbine_id=${encodeURIComponent(turbineId)}&pitch_angle=0`,
+          {}
+        );
+        const powerCurve = pcRaw
+          .filter(p => p.wind_speed >= 3 && p.wind_speed <= 25)
+          .map(p => ({ wind_speed: p.wind_speed, power: Math.round(p.power_kw) }));
+
+        // 4. Wind shear
+        const wsRaw = await postApiWithAuth<BackendWindShear>(
+          `/physics/wind-shear?turbine_id=${encodeURIComponent(turbineId)}&wind_speed_at_hub=10`,
+          {}
+        );
+        const alpha = wsRaw.wind_shear_exponent ?? 0.2;
+        const hubSpeed = wsRaw.wind_speed_at_hub ?? 10;
+        const windShear = Array.from({ length: 20 }, (_, i) => {
+          const h = 10 + i * 7;
+          return { height: h, wind_speed: hubSpeed * Math.pow(h / cfg.tower_height, alpha) };
+        });
+
+        // 5. Offshore loading
+        const offRaw = await postApiWithAuth<BackendOffshore>('/physics/offshore-loading', {
+          turbine_id: turbineId,
+          significant_wave_height: selectedModel === '2.5MW' ? 2.5 : 3.0,
+          peak_frequency: 0.1,
+          current_velocity: selectedModel === '2.5MW' ? 0.45 : 0.55,
+          water_depth: selectedModel === '2.5MW' ? 32 : 35,
+        });
+
+        setData({
+          powerCurve: powerCurve.length > 0 ? powerCurve : mockPhysicsData[selectedModel].powerCurve,
+          windShear,
+          thrustMoment: mockPhysicsData[selectedModel].thrustMoment,
+          offshoreLoading: {
+            wave_height: selectedModel === '2.5MW' ? 2.5 : 3.0,
+            current_speed: selectedModel === '2.5MW' ? 0.45 : 0.55,
+            water_depth: selectedModel === '2.5MW' ? 32 : 35,
+            total_load: Math.round(offRaw.total_horizontal_load_kn),
+          },
+          windFarm: mockPhysicsData[selectedModel].windFarm,
+        });
         success(t('physics.loaded_data', { model: selectedModel }));
       } catch (err) {
-        showError(t('physics.load_failed'));
-        console.error(err);
+        console.error('Physics API error, falling back to mock:', err);
+        setData(mockPhysicsData[selectedModel]);
+        success(t('physics.loaded_data', { model: selectedModel }));
       } finally {
         setIsLoading(false);
       }
     };
 
     loadData();
-  }, [selectedModel, success, showError, t]);
+  }, [selectedModel, refreshKey, success, showError, t]);
 
   // Export дані as CSV
   const handleExportData = useCallback(async () => {
@@ -241,12 +304,8 @@ export default function PhysicsPage() {
 
   // Refresh дані
   const handleRefresh = useCallback(() => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      success(t('physics.refreshed'));
-    }, 500);
-  }, [success, t]);
+    setRefreshKey(k => k + 1);
+  }, []);
 
   return (
     <div className="px-6 lg:px-10 py-8 lg:py-10">

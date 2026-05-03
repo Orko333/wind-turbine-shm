@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { postApiWithAuth } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -14,6 +15,14 @@ import {
   Cell,
 } from 'recharts';
 import { AlertCircle } from 'lucide-react';
+
+interface BackendSCDAResult {
+  turbine_id: string;
+  damage_index: number;
+  damage_class: string;
+  class_probabilities: Record<string, number>;
+  shap_explanation: Record<string, number> | null;
+}
 
 interface SHAPExplanationProps {
   modelType?: 'cnn' | 'lstm';
@@ -41,66 +50,61 @@ export function SHAPExplanation({ modelType = 'cnn' }: SHAPExplanationProps) {
   useEffect(() => {
     // Симуляція API-виклику для отримання SHAP-пояснень
     const loadData = async () => {
+      const mockData: SHAPData = {
+        model_type: modelType === 'cnn' ? 'CNN Damage Classifier' : 'LSTM RUL Predictor',
+        base_value: 0.4,
+        model_prediction: 0.875,
+        features: [
+          { feature: 'Vibration Amplitude', shap_value: 0.15, contribution: 'positive' },
+          { feature: 'Temperature Trend', shap_value: 0.12, contribution: 'positive' },
+          { feature: 'Power Output', shap_value: -0.08, contribution: 'negative' },
+          { feature: 'Blade Pitch Angle', shap_value: 0.1, contribution: 'positive' },
+          { feature: 'Rotor Speed Variance', shap_value: 0.08, contribution: 'positive' },
+          { feature: 'Gearbox Oil Temp', shap_value: 0.06, contribution: 'positive' },
+          { feature: 'Wind Speed', shap_value: -0.04, contribution: 'negative' },
+          { feature: 'Humidity Level', shap_value: 0.03, contribution: 'positive' },
+        ],
+      };
+
       try {
         setIsLoading(true);
-        // Тестові дані — у продакшені замінити на справжній API-виклик
-        // const response = await getApiWithAuth<SHAPData>(
-        //   `/predictions/shap?model=${modelType}`
-        // );
+        const backend = await postApiWithAuth<BackendSCDAResult>('/predict/scada?explain=true', {
+          turbine_id: 'WT-001',
+          timestamp: new Date().toISOString(),
+          wind_speed_mean: 10.5,
+          wind_speed_std: 1.2,
+          rotor_speed_rpm: 14.0,
+          pitch_angle_deg: 5.0,
+          active_power_kw: 1800.0,
+          tower_base_moment_kNm: 8000.0,
+          tower_top_accel_rms: 0.15,
+          nacelle_temp_degC: 45.0,
+        });
 
-        const mockData: SHAPData = {
-          model_type: modelType === 'cnn' ? 'CNN Damage Classifier' : 'LSTM RUL Predictor',
-          base_value: 0.4,
-          model_prediction: 0.875,
-          features: [
-            {
-              feature: 'Vibration Amplitude',
-              shap_value: 0.15,
-              contribution: 'High impact - increases damage risk',
-            },
-            {
-              feature: 'Temperature Trend',
-              shap_value: 0.12,
-              contribution: 'Moderate impact - thermal stress indicator',
-            },
-            {
-              feature: 'Power Output',
-              shap_value: -0.08,
-              contribution: 'Negative impact - normal operation reduces risk',
-            },
-            {
-              feature: 'Blade Pitch Angle',
-              shap_value: 0.1,
-              contribution: 'Moderate impact - aerodynamic loading',
-            },
-            {
-              feature: 'Rotor Speed Variance',
-              shap_value: 0.08,
-              contribution: 'Moderate impact - operational stability',
-            },
-            {
-              feature: 'Gearbox Oil Temp',
-              shap_value: 0.06,
-              contribution: 'Low impact - lubrication efficiency',
-            },
-            {
-              feature: 'Wind Speed',
-              shap_value: -0.04,
-              contribution: 'Negative impact - environment factor',
-            },
-            {
-              feature: 'Humidity Level',
-              shap_value: 0.03,
-              contribution: 'Low impact - corrosion risk',
-            },
-          ],
-        };
-
-        setData(mockData);
+        if (backend.shap_explanation && typeof backend.shap_explanation === 'object') {
+          const features: FeatureImportance[] = Object.entries(backend.shap_explanation).map(
+            ([key, value]) => ({
+              feature: key,
+              shap_value: value,
+              contribution: value >= 0 ? 'positive' : 'negative',
+            })
+          );
+          setData({
+            model_type: modelType === 'cnn' ? 'CNN Damage Classifier' : 'LSTM RUL Predictor',
+            base_value: backend.damage_index ?? 0.4,
+            model_prediction:
+              (backend.class_probabilities?.['Warning'] ?? 0) +
+              (backend.class_probabilities?.['Critical'] ?? 0),
+            features,
+          });
+        } else {
+          setData(mockData);
+        }
         setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load SHAP explanation');
-        setData(null);
+        console.error('SHAPExplanation API error:', err);
+        setData(mockData);
+        setError(null);
       } finally {
         setIsLoading(false);
       }

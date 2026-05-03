@@ -21,6 +21,14 @@ import { RainflowHistogram } from '@/components/fatigue/RainflowHistogram';
 import { SNChart } from '@/components/fatigue/SNChart';
 import { formatDate } from '@/lib/formatting';
 import { useT } from '@/lib/i18n';
+import { getApiWithAuth } from '@/lib/api';
+
+interface TurbineItem {
+  turbine_id: string;
+  cumulative_damage: number;
+  rul_years: number;
+  alert_level: string;
+}
 
 interface DateRange {
   from: Date;
@@ -224,18 +232,49 @@ export default function FatiguePage() {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        // Simulate API call - in production, fetch from backend
-        // const response = await getApiWithAuth<FatigueData>(
-        //   `/fatigue/analysis?from=${dateRange.from.toISOString()}&to=${dateRange.to.toISOString()}`
-        // );
-        // setData(response);
+        const result = await getApiWithAuth<{ data: TurbineItem[]; total: number }>('/turbines?page=1&page_size=100');
+        const turbines = result.data;
 
-        // Use mock дані for now
-        setData(mockFatigueData);
+        const damageDistribution = [
+          { range: '0-20%', count: turbines.filter((t) => t.cumulative_damage < 0.2).length },
+          { range: '20-40%', count: turbines.filter((t) => t.cumulative_damage >= 0.2 && t.cumulative_damage < 0.4).length },
+          { range: '40-60%', count: turbines.filter((t) => t.cumulative_damage >= 0.4 && t.cumulative_damage < 0.6).length },
+          { range: '60-80%', count: turbines.filter((t) => t.cumulative_damage >= 0.6 && t.cumulative_damage < 0.8).length },
+          { range: '80-100%', count: turbines.filter((t) => t.cumulative_damage >= 0.8).length },
+        ];
+
+        const topDamagedTurbines = [...turbines]
+          .sort((a, b) => b.cumulative_damage - a.cumulative_damage)
+          .slice(0, 5)
+          .map((t) => ({
+            turbine_id: t.turbine_id,
+            damage_rate: t.cumulative_damage * 100,
+            rul_years: t.rul_years,
+            health_score: Math.round((1 - t.cumulative_damage) * 100),
+          }));
+
+        const rulDistribution = [
+          { range: '0-5 years', turbines: turbines.filter((t) => t.rul_years < 5).length, criticality: 'high' as const },
+          { range: '5-10 years', turbines: turbines.filter((t) => t.rul_years >= 5 && t.rul_years < 10).length, criticality: 'medium' as const },
+          { range: '10-15 years', turbines: turbines.filter((t) => t.rul_years >= 10 && t.rul_years < 15).length, criticality: 'low' as const },
+          { range: '15+ years', turbines: turbines.filter((t) => t.rul_years >= 15).length, criticality: 'low' as const },
+        ];
+
+        const avgDamage = turbines.reduce((s, t) => s + t.cumulative_damage, 0) / turbines.length || 0;
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const damageHistory = months.map((month, i) => ({
+          month,
+          cumulative_damage: parseFloat((avgDamage * (i + 1) / 12 * 100).toFixed(2)),
+        }));
+
+        const { goodmanData, rainflowCycles, snCurve, threshold_warnings } = mockFatigueData;
+
+        setData({ damageDistribution, topDamagedTurbines, rulDistribution, damageHistory, goodmanData, rainflowCycles, snCurve, threshold_warnings });
         success('Дані втомленості завантажено');
       } catch (err) {
+        console.error('Fatigue page API error:', err);
         showError('Failed to load fatigue data');
-        console.error(err);
+        setData(mockFatigueData);
       } finally {
         setIsLoading(false);
       }
