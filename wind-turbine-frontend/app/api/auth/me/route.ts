@@ -1,45 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const BACKEND = process.env.BACKEND_URL || 'https://test1111ww-wind-turbine-shm-api.hf.space';
+
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('auth_token')?.value;
+    const token =
+      request.cookies.get('auth_token')?.value ||
+      request.headers.get('authorization')?.replace('Bearer ', '');
 
     if (!token) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    // Decode the mock token to отримати user info
-    try {
-      const parts = token.split('.');
-      if (parts.length !== 3) {
-        return NextResponse.json(
-          { message: 'Invalid token' },
-          { status: 401 }
-        );
-      }
+    const upstream = await fetch(`${BACKEND}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
-
-      return NextResponse.json({
-        id: payload.sub,
-        email: payload.email,
-        role: payload.role,
-        name: payload.email.split('@')[0],
-        created_at: new Date().toISOString(),
-      });
-    } catch {
-      return NextResponse.json(
-        { message: 'Invalid token format' },
-        { status: 401 }
-      );
-    }
+    const data = await upstream.json();
+    return NextResponse.json(data, { status: upstream.status });
   } catch {
-    return NextResponse.json(
-      { message: 'Server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: 'Server error' }, { status: 500 });
   }
 }
