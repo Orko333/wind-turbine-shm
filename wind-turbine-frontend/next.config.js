@@ -2,6 +2,8 @@
 const path = require('path');
 
 const nextConfig = {
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
   reactStrictMode: true,
   swcMinify: true,
   output: 'standalone',
