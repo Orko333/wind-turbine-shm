@@ -53,7 +53,16 @@ const ROUTE_CONFIG: Record<string, string[]> = {
 };
 
 /**
- * Decode JWT token (client-side compatible)
+ * Decode base64url string — Edge runtime compatible (no Buffer)
+ */
+function base64UrlDecode(str: string): string {
+  const padded = str + "=".repeat((4 - (str.length % 4)) % 4);
+  const base64 = padded.replace(/-/g, "+").replace(/_/g, "/");
+  return atob(base64);
+}
+
+/**
+ * Decode JWT token (Edge runtime compatible)
  * Note: Token is verified by the backend; this is for client-side extraction only
  */
 function decodeJwt(token: string): JwtPayload | null {
@@ -63,9 +72,7 @@ function decodeJwt(token: string): JwtPayload | null {
       return null;
     }
 
-    const decoded = JSON.parse(
-      Buffer.from(parts[1], "base64").toString("utf-8")
-    ) as JwtPayload;
+    const decoded = JSON.parse(base64UrlDecode(parts[1])) as JwtPayload;
 
     return decoded;
   } catch {

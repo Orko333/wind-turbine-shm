@@ -204,7 +204,7 @@ export function useTurbineAlerts(
     queryKey: ["turbine-alerts", turbineId, severity],
     queryFn: async () => {
       const response = await getApiWithAuth<Alert[]>(
-        `/alerts?${queryParams.toString()}`
+        `/alerts/?${queryParams.toString()}`
       );
       return response;
     },
