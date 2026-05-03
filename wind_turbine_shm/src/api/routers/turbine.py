@@ -220,13 +220,16 @@ _DEMO_TURBINES = [
 
 def _ensure_demo_turbines(db: Session, user: User) -> None:
     """Auto-create demo turbines for a user that has none (demo/ephemeral-DB mode)."""
+    prefix = (user.username[:4].upper() if user.username else "USR")
     for td in _DEMO_TURBINES:
+        suffix = td["turbine_id"].replace("WT-", "")
+        turbine_id = f"{prefix}-{suffix}"
         exists = db.query(Turbine).filter(
-            (Turbine.turbine_id == td["turbine_id"]) & (Turbine.owner_id == user.id)
+            (Turbine.turbine_id == turbine_id) & (Turbine.owner_id == user.id)
         ).first()
         if not exists:
             db.add(Turbine(
-                turbine_id=td["turbine_id"],
+                turbine_id=turbine_id,
                 owner_id=user.id,
                 name=td["name"],
                 location=td["location"],
@@ -239,7 +242,11 @@ def _ensure_demo_turbines(db: Session, user: User) -> None:
                 rul_days=round(365 * 20 * (1 - td["cumulative_damage"]), 0),
                 installation_date=datetime(2018, 6, 1, tzinfo=timezone.utc),
             ))
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"Could not auto-create demo turbines: {e}")
 
 
 @router.get("/")
