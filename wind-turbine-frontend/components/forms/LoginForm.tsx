@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
+import { useAuthStore } from '@/store/auth';
 
 // Схема валідації
 const loginSchema = z.object({
@@ -37,6 +38,7 @@ interface LoginFormProps {
 
 export function LoginForm({ onSuccess, onError }: LoginFormProps) {
   const t = useT();
+  const { setToken, fetchCurrentUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -102,9 +104,12 @@ export function LoginForm({ onSuccess, onError }: LoginFormProps) {
         return;
       }
 
-      // Store token in localStorage so getApiWithAuth can attach it to requests
+      // Store token in localStorage so getApiWithAuth can attach it to requests,
+      // and hydrate the Zustand auth store so useRole/TopBar can read the user role.
       if (responseData.access_token) {
         localStorage.setItem('auth_token', responseData.access_token);
+        setToken(responseData.access_token);
+        try { await fetchCurrentUser(); } catch { /* non-fatal */ }
       }
 
       // Зберегти токен, якщо встановлено "запам'ятати мене"
