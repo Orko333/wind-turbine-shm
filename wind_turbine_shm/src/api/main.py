@@ -52,31 +52,6 @@ from .schemas import HealthCheckResponse
 from ..database.config import init_db
 
 
-def _seed_demo_data():
-    """Засідити демо-юзера якщо БД порожня."""
-    try:
-        from ..database.config import SessionLocal
-        from ..database.models import User
-        from ..auth.security import hash_password
-        db = SessionLocal()
-        try:
-            if not db.query(User).filter(User.email == "engineer@example.com").first():
-                db.add(User(
-                    username="engineer",
-                    email="engineer@example.com",
-                    hashed_password=hash_password("Password123!"),
-                    is_active=True,
-                ))
-                db.commit()
-                logger.info("Демо-юзера створено.")
-            else:
-                logger.info("Демо-юзер вже існує.")
-        finally:
-            db.close()
-    except Exception as e:
-        logger.warning(f"Не вдалося засідити демо-дані: {e}")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Завантажити ML-моделі та ініціалізувати БД під час запуску."""
@@ -84,7 +59,6 @@ async def lifespan(app: FastAPI):
     try:
         init_db()
         logger.info("База даних готова.")
-        _seed_demo_data()
     except Exception as e:
         logger.warning(f"БД недоступна, продовжуємо без неї: {e}")
 

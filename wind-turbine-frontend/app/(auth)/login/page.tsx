@@ -62,9 +62,8 @@ export default function LoginPage() {
           />
 
           {/* Footer Links */}
-          <div className="mt-6 space-y-2 text-center text-xs text-muted-foreground">
-            <p>{t('auth.demo_credentials')}</p>
-            <p className="pt-2">
+          <div className="mt-6 text-center text-xs text-muted-foreground">
+            <p>
               {t('auth.no_account')}{' '}
               <Link
                 href="/signup"

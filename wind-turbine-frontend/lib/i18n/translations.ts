@@ -145,7 +145,7 @@ export const translations = {
     // ─── Auth ───────────────────────────────────────────
     'auth.welcome_back':       'Welcome Back',
     'auth.signin_subtitle':    'Sign in to your Wind Turbine SHM Dashboard',
-    'auth.demo_credentials':   'Demo credentials: engineer@example.com / Password123!',
+    'auth.demo_credentials':   '',
     'auth.no_account':         'Don\'t have an account?',
     'auth.signup_here':        'Sign up here',
     'auth.email':              'Email Address',
@@ -1099,7 +1099,7 @@ export const translations = {
     // ─── Авторизація ────────────────────────────────────
     'auth.welcome_back':       'Ласкаво просимо',
     'auth.signin_subtitle':    'Увійдіть до панелі моніторингу турбін',
-    'auth.demo_credentials':   'Демо-доступ: engineer@example.com / Password123!',
+    'auth.demo_credentials':   '',
     'auth.no_account':         'Немає акаунту?',
     'auth.signup_here':        'Зареєструватися',
     'auth.email':              'Електронна пошта',
