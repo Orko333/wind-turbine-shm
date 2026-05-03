@@ -157,7 +157,7 @@ export function useTurbineList(
       const response = await getApiWithAuth<{
         data: Turbine[];
         total: number;
-      }>(`/turbines?${queryParams.toString()}`);
+      }>(`/turbines/?${queryParams.toString()}`);
       return response;
     },
     enabled,

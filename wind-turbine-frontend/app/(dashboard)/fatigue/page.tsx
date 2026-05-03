@@ -232,7 +232,7 @@ export default function FatiguePage() {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const result = await getApiWithAuth<{ data: TurbineItem[]; total: number }>('/turbines?page=1&page_size=100');
+        const result = await getApiWithAuth<{ data: TurbineItem[]; total: number }>('/turbines/?page=1&page_size=100');
         const turbines = result.data;
 
         const damageDistribution = [

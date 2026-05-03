@@ -213,7 +213,7 @@ export default function PhysicsPage() {
       setIsLoading(true);
       try {
         // 1. Get a turbine owned by the current user
-        const listRes = await getApiWithAuth<TurbineListResponse>('/turbines?page=1&page_size=1');
+        const listRes = await getApiWithAuth<TurbineListResponse>('/turbines/?page=1&page_size=1');
         const turbineId = listRes.data?.[0]?.turbine_id;
         if (!turbineId) throw new Error('No turbines available');
 
