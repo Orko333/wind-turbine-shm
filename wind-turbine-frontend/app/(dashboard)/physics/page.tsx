@@ -23,7 +23,7 @@ import { getApiWithAuth, postApiWithAuth } from '@/lib/api';
 type ModelType = '2.5MW' | '3.0MW';
 
 interface TurbineListItem { turbine_id: string }
-interface TurbineListResponse { turbines: TurbineListItem[] }
+interface TurbineListResponse { data: TurbineListItem[]; total: number }
 interface BackendPowerCurvePoint { wind_speed: number; power_kw: number }
 interface BackendWindShear { wind_speed_at_hub: number; wind_shear_exponent: number }
 interface BackendOffshore { total_horizontal_load_kn: number }
@@ -214,7 +214,7 @@ export default function PhysicsPage() {
       try {
         // 1. Get a turbine owned by the current user
         const listRes = await getApiWithAuth<TurbineListResponse>('/turbines?page=1&page_size=1');
-        const turbineId = listRes.turbines?.[0]?.turbine_id;
+        const turbineId = listRes.data?.[0]?.turbine_id;
         if (!turbineId) throw new Error('No turbines available');
 
         const cfg = MODEL_CONFIGS[selectedModel];

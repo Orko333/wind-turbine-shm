@@ -93,12 +93,18 @@ export function LoginForm({ onSuccess, onError }: LoginFormProps) {
         return;
       }
 
+      let responseData: { access_token?: string } = {};
       try {
-        await response.json();
+        responseData = await response.json();
       } catch {
         setServerError(t('auth.invalid_response'));
         onError?.(t('auth.invalid_response'));
         return;
+      }
+
+      // Store token in localStorage so getApiWithAuth can attach it to requests
+      if (responseData.access_token) {
+        localStorage.setItem('auth_token', responseData.access_token);
       }
 
       // Зберегти токен, якщо встановлено "запам'ятати мене"
