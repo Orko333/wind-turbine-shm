@@ -1,0 +1,203 @@
+@import "shadcn/tailwind.css";
+@import "tw-animate-css";
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700;9..144,800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  :root {
+    /* ─── SURFACES ─ warm graphite, not cool blue ──────── */
+    --background:       30 10% 5%;
+    --foreground:       40 12% 92%;
+
+    --surface-1:        28 9%  8%;
+    --surface-2:        26 8%  11%;
+    --surface-3:        24 7%  15%;
+
+    --card:             28 9%  8%;
+    --card-foreground:  40 12% 92%;
+
+    --popover:          26 8%  11%;
+    --popover-foreground: 40 12% 92%;
+
+    /* ─── INK ─────────────────────────────────────────── */
+    --ink-1:            40 12% 92%;
+    --ink-2:            36 8%  68%;
+    --ink-3:            32 6%  46%;
+    --ink-4:            28 5%  30%;
+
+    /* ─── PRIMARY ─ warm amber (LED indicator) ─────────── */
+    --primary:          38 90% 58%;
+    --primary-foreground: 30 10% 5%;
+
+    --secondary:        26 8%  14%;
+    --secondary-foreground: 40 12% 88%;
+
+    --accent:           38 90% 58%;
+    --accent-foreground: 30 10% 5%;
+
+    --muted:            26 8% 14%;
+    --muted-foreground: 32 6% 50%;
+
+    /* ─── SIGNALS ─────────────────────────────────────── */
+    --signal-live:      168 60% 56%;
+    --signal-warn:      38  90% 58%;
+    --signal-crit:      6   72% 62%;
+
+    --destructive:      6   72% 62%;
+    --destructive-foreground: 40 12% 92%;
+
+    /* ─── STRUCTURE ───────────────────────────────────── */
+    --hairline:         28 8% 16%;
+    --hairline-strong:  28 8% 22%;
+    --border:           28 8% 16%;
+    --input:            28 8% 18%;
+    --ring:             38 90% 58%;
+    --radius:           0.625rem;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+    outline-color: hsl(var(--ring) / 0.5);
+  }
+
+  html, body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  body {
+    font-family: var(--font-geist-sans), -apple-system, 'Inter', system-ui, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'cv11', 'ss01';
+    /* atmospheric ground: very subtle warm gradient + grain */
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, hsl(38 60% 30% / 0.04), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 100% 100%, hsl(168 50% 30% / 0.03), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  /* film grain — subtle */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  /* utility classes for typography */
+  .display {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 400;
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+    font-variation-settings: 'opsz' 144, 'SOFT' 0;
+  }
+
+  .mono {
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-feature-settings: 'tnum', 'zero', 'cv11';
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .eyebrow {
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: hsl(var(--ink-3));
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .text-pretty  { text-wrap: pretty; }
+
+  .ink-1 { color: hsl(var(--ink-1)); }
+  .ink-2 { color: hsl(var(--ink-2)); }
+  .ink-3 { color: hsl(var(--ink-3)); }
+  .ink-4 { color: hsl(var(--ink-4)); }
+
+  .signal-live { color: hsl(var(--signal-live)); }
+  .signal-warn { color: hsl(var(--signal-warn)); }
+  .signal-crit { color: hsl(var(--signal-crit)); }
+
+  .bg-live { background-color: hsl(var(--signal-live)); }
+  .bg-warn { background-color: hsl(var(--signal-warn)); }
+  .bg-crit { background-color: hsl(var(--signal-crit)); }
+
+  .surface-1 { background-color: hsl(var(--surface-1)); }
+  .surface-2 { background-color: hsl(var(--surface-2)); }
+  .surface-3 { background-color: hsl(var(--surface-3)); }
+
+  .hairline    { border-color: hsl(var(--hairline)); }
+  .hairline-b  { border-bottom: 1px solid hsl(var(--hairline)); }
+  .hairline-t  { border-top: 1px solid hsl(var(--hairline)); }
+  .hairline-r  { border-right: 1px solid hsl(var(--hairline)); }
+  .hairline-l  { border-left: 1px solid hsl(var(--hairline)); }
+
+  /* ambient glow utility */
+  .glow-amber {
+    box-shadow: 0 0 0 1px hsl(38 90% 58% / 0.2),
+                0 0 24px -8px hsl(38 90% 58% / 0.4),
+                inset 0 0 12px -6px hsl(38 90% 58% / 0.15);
+  }
+
+  .glow-live {
+    box-shadow: 0 0 0 1px hsl(168 60% 56% / 0.2),
+                0 0 16px -6px hsl(168 60% 56% / 0.35);
+  }
+
+  /* scrollbar tuning */
+  .scroll-quiet::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scroll-quiet::-webkit-scrollbar-track { background: transparent; }
+  .scroll-quiet::-webkit-scrollbar-thumb { background: hsl(var(--hairline-strong)); border-radius: 3px; }
+  .scroll-quiet::-webkit-scrollbar-thumb:hover { background: hsl(var(--ink-4)); }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(0.95); opacity: 0.7; }
+  70%  { transform: scale(1.6);  opacity: 0; }
+  100% { transform: scale(0.95); opacity: 0; }
+}
+
+.pulse-ring::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background-color: currentColor;
+  animation: pulse-ring 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+
+.shimmer { animation: shimmer 2.5s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ring::before, .shimmer { animation: none; }
+}

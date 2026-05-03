@@ -1,0 +1,57 @@
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# Next.js
+wind-turbine-frontend/.next/
+wind-turbine-frontend/node_modules/
+wind-turbine-frontend/out/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Docker
+docker-compose.override.yml
+
+# DB
+*.sqlite
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code / MCP
+.claude/
+.mcp.json
+.playwright-mcp/
+memory/
+
+# Data / models
+wind_turbine_shm/data/
+wind_turbine_shm/models/*.pkl
+wind_turbine_shm/models/*.joblib
+wind_turbine_shm/notebooks/.ipynb_checkpoints/
