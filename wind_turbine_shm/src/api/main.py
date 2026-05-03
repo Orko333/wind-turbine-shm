@@ -70,6 +70,7 @@ async def lifespan(app: FastAPI):
     admin_password = os.getenv("ADMIN_PASSWORD")
     admin_username = os.getenv("ADMIN_USERNAME", "admin")
     if admin_email and admin_password:
+        from ..auth.security import verify_password
         db = next(get_db())
         try:
             existing = db.query(User).filter(User.email == admin_email).first()
@@ -82,6 +83,11 @@ async def lifespan(app: FastAPI):
                 ))
                 db.commit()
                 logger.info(f"Admin user '{admin_username}' auto-created from env.")
+            elif not verify_password(admin_password, existing.hashed_password):
+                existing.hashed_password = hash_password(admin_password)
+                existing.role = "admin"
+                db.commit()
+                logger.info(f"Admin user '{admin_username}' password updated from env.")
             else:
                 logger.info(f"Admin user '{admin_username}' already exists.")
         except Exception as e:
