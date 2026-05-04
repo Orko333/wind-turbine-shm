@@ -183,13 +183,15 @@ export function NotificationRules() {
             rules.map((rule) => (
               <Card
                 key={rule.id}
-                className={`p-4 ${
-                  rule.severity === 'critical'
-                    ? 'border-l-red-500 surface-2'
-                    : rule.severity === 'warning'
-                    ? 'border-l-yellow-500 surface-2'
-                    : 'border-l-blue-500 surface-2'
-                }`}
+                className="p-4 surface-2 border-l-2 hairline"
+                style={{
+                  borderLeftColor:
+                    rule.severity === 'critical'
+                      ? 'hsl(var(--signal-crit))'
+                      : rule.severity === 'warning'
+                      ? 'hsl(var(--signal-warn))'
+                      : 'hsl(var(--signal-live))',
+                }}
               >
                 <div className="space-y-4">
                   {/* Заголовок правила */}
@@ -231,7 +233,7 @@ export function NotificationRules() {
                           <select
                             value={rule.metric}
                             onChange={(e) => handleRuleChange(rule.id, 'metric', e.target.value)}
-                            className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                            className="w-full mt-1 px-2 py-1 surface-2 hairline border rounded text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                           >
                             <option value="power_output_kw">Потужність (kW)</option>
                             <option value="wind_speed_ms">Швидкість вітру (m/s)</option>
@@ -252,7 +254,7 @@ export function NotificationRules() {
                                 e.target.value as NotificationRule['operator']
                               )
                             }
-                            className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                            className="w-full mt-1 px-2 py-1 surface-2 hairline border rounded text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                           >
                             <option value="greater_than">&gt; (більше ніж)</option>
                             <option value="less_than">&lt; (менше ніж)</option>
@@ -284,7 +286,7 @@ export function NotificationRules() {
                               e.target.value as NotificationRule['severity']
                             )
                           }
-                          className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                          className="w-full mt-1 px-2 py-1 surface-2 hairline border rounded text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                         >
                           <option value="critical">Критична (Червона)</option>
                           <option value="warning">Попередження (Жовта)</option>

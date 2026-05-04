@@ -67,7 +67,7 @@ export default function SimulationsPage() {
                 onClick={() => setActiveTab(tab.id as SimulationType)}
                 className={`p-4 rounded-lg border-2 text-left transition-colors ${
                   isActive
-                    ? 'border-blue-500 surface-2'
+                    ? 'border-amber-500 surface-2'
                     : 'hairline surface-1 hover:hairline'
                 }`}
               >
@@ -125,7 +125,7 @@ export default function SimulationsPage() {
               <Waves className="w-5 h-5 ink-2 flex-shrink-0 mt-0.5" />
               <div>
                 <h4 className="font-semibold ink-1 mb-2">{t('simulations.export_options')}</h4>
-                <p className="text-sm text-purple-800">
+                <p className="text-sm ink-2">
                   {t('simulations.export_options_desc')}
                 </p>
               </div>
@@ -141,19 +141,19 @@ export default function SimulationsPage() {
               <h4 className="font-semibold ink-1 mb-3">{t('simulations.tab.openfast')}</h4>
               <ul className="text-sm ink-2 space-y-2">
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-500 font-bold">•</span>
+                  <span className="signal-warn font-bold">•</span>
                   <span>{t('simulations.openfast_li1')}</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-500 font-bold">•</span>
+                  <span className="signal-warn font-bold">•</span>
                   <span>{t('simulations.openfast_li2')}</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-500 font-bold">•</span>
+                  <span className="signal-warn font-bold">•</span>
                   <span>{t('simulations.openfast_li3')}</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-500 font-bold">•</span>
+                  <span className="signal-warn font-bold">•</span>
                   <span>{t('simulations.openfast_li4')}</span>
                 </li>
               </ul>
@@ -163,19 +163,19 @@ export default function SimulationsPage() {
               <h4 className="font-semibold ink-1 mb-3">{t('simulations.rom_title')}</h4>
               <ul className="text-sm ink-2 space-y-2">
                 <li className="flex items-start gap-2">
-                  <span className="text-green-500 font-bold">•</span>
+                  <span className="signal-live font-bold">•</span>
                   <span>{t('simulations.rom_li1')}</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-green-500 font-bold">•</span>
+                  <span className="signal-live font-bold">•</span>
                   <span>{t('simulations.rom_li2')}</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-green-500 font-bold">•</span>
+                  <span className="signal-live font-bold">•</span>
                   <span>{t('simulations.rom_li3')}</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-green-500 font-bold">•</span>
+                  <span className="signal-live font-bold">•</span>
                   <span>{t('simulations.rom_li4')}</span>
                 </li>
               </ul>
@@ -185,19 +185,19 @@ export default function SimulationsPage() {
               <h4 className="font-semibold ink-1 mb-3">{t('simulations.dynamic_title')}</h4>
               <ul className="text-sm ink-2 space-y-2">
                 <li className="flex items-start gap-2">
-                  <span className="text-purple-500 font-bold">•</span>
+                  <span className="ink-2 font-bold">•</span>
                   <span>{t('simulations.dynamic_li1')}</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-purple-500 font-bold">•</span>
+                  <span className="ink-2 font-bold">•</span>
                   <span>{t('simulations.dynamic_li2')}</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-purple-500 font-bold">•</span>
+                  <span className="ink-2 font-bold">•</span>
                   <span>{t('simulations.dynamic_li3')}</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-purple-500 font-bold">•</span>
+                  <span className="ink-2 font-bold">•</span>
                   <span>{t('simulations.dynamic_li4')}</span>
                 </li>
               </ul>

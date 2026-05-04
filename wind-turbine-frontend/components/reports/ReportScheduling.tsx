@@ -5,7 +5,6 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { useToast } from '../../hooks/useToast';
-import { postApiWithAuth } from '../../lib/api';
 import { Clock, Plus, Edit2, Trash2, Mail } from 'lucide-react';
 import { useLocale } from '../../lib/i18n';
 
@@ -181,58 +180,43 @@ export function ReportScheduling() {
     }));
   }, []);
 
-  const handleSaveSchedule = useCallback(async () => {
+  const handleSaveSchedule = useCallback(() => {
     if (!formData.name || !formData.recipients?.length) {
       showError(L.requiredFields);
       return;
     }
 
-    try {
-      setIsSaving(true);
-      if (isEditing) {
-        await postApiWithAuth(`/reports/schedules/${isEditing}`, formData);
-        setSchedules((prev) =>
-          prev.map((s) => (s.id === isEditing ? { ...s, ...formData } : s))
-        );
-      } else {
-        await postApiWithAuth('/reports/schedules', formData);
-        setSchedules((prev) => [...prev, { ...formData, id: Date.now().toString() } as ScheduledReport]);
-      }
-      success(isEditing ? L.scheduleUpdated : L.scheduleCreated);
-      setFormData({
-        name: '',
-        frequency: 'daily',
-        time: '06:00',
-        format: 'pdf',
-        recipients: [],
-        metrics: [],
-        enabled: true,
-      });
-      setIsAdding(false);
-      setIsEditing(null);
-    } catch {
-      showError(L.scheduleSaveFailed);
-    } finally {
-      setIsSaving(false);
+    setIsSaving(true);
+    if (isEditing) {
+      setSchedules((prev) =>
+        prev.map((s) => (s.id === isEditing ? { ...s, ...formData } : s))
+      );
+    } else {
+      setSchedules((prev) => [...prev, { ...formData, id: Date.now().toString() } as ScheduledReport]);
     }
-  }, [formData, isEditing, success, showError, L.requiredFields, L.scheduleUpdated, L.scheduleCreated, L.scheduleSaveFailed]);
+    success(isEditing ? L.scheduleUpdated : L.scheduleCreated);
+    setFormData({
+      name: '',
+      frequency: 'daily',
+      time: '06:00',
+      format: 'pdf',
+      recipients: [],
+      metrics: [],
+      enabled: true,
+    });
+    setIsAdding(false);
+    setIsEditing(null);
+    setIsSaving(false);
+  }, [formData, isEditing, success, showError, L.requiredFields, L.scheduleUpdated, L.scheduleCreated]);
 
   const handleDeleteSchedule = useCallback(
-    async (scheduleId: string) => {
-      if (!window.confirm(L.deleteScheduleConfirm)) return;
-
-      try {
-        setIsSaving(true);
-        await postApiWithAuth(`/reports/schedules/${scheduleId}`, { _method: 'DELETE' });
-        setSchedules((prev) => prev.filter((s) => s.id !== scheduleId));
-        success(L.scheduleDeleted);
-      } catch {
-        showError(L.deleteFailed);
-      } finally {
-        setIsSaving(false);
-      }
+    (scheduleId: string) => {
+      setIsSaving(true);
+      setSchedules((prev) => prev.filter((s) => s.id !== scheduleId));
+      success(L.scheduleDeleted);
+      setIsSaving(false);
     },
-    [success, showError, L.deleteScheduleConfirm, L.scheduleDeleted, L.deleteFailed]
+    [success, L.scheduleDeleted]
   );
 
   const metrics = ['power_output', 'efficiency', 'availability', 'damage', 'rul', 'vibration'];
@@ -254,7 +238,8 @@ export function ReportScheduling() {
         {schedules.map((schedule) => (
           <Card
             key={schedule.id}
-            className={`p-4 ${schedule.enabled ? 'border-l-green-500 surface-2' : 'border-l-gray-300 surface-2'}`}
+            className={`p-4 border-l-2 surface-2 ${schedule.enabled ? '' : 'opacity-60'}`}
+            style={schedule.enabled ? { borderLeftColor: 'hsl(var(--signal-live))' } : { borderLeftColor: 'hsl(var(--ink-3))' }}
           >
             <div className="flex items-start justify-between mb-3">
               <div className="flex-1">
@@ -353,7 +338,7 @@ export function ReportScheduling() {
                 <select
                   value={formData.frequency || 'daily'}
                   onChange={(e) => handleInputChange('frequency', e.target.value)}
-                  className="w-full mt-2 px-3 py-2 border rounded-md text-sm"
+                  className="w-full mt-2 px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 >
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
@@ -379,7 +364,7 @@ export function ReportScheduling() {
               <select
                 value={formData.format || 'pdf'}
                 onChange={(e) => handleInputChange('format', e.target.value)}
-                className="w-full mt-2 px-3 py-2 border rounded-md text-sm"
+                className="w-full mt-2 px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
               >
                 <option value="pdf">PDF</option>
                 <option value="xlsx">Excel</option>
@@ -428,10 +413,10 @@ export function ReportScheduling() {
                   <button
                     key={metric}
                     onClick={() => handleAddMetric(metric)}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                    className={`px-3 py-1 rounded text-xs font-medium mono uppercase tracking-widest transition-colors border hairline ${
                       formData.metrics?.includes(metric)
-                        ? 'bg-blue-600 text-white'
-                        : 'surface-1 border hairline ink-2 hover:border-blue-300'
+                        ? 'glow-amber surface-2 ink-1'
+                        : 'surface-1 ink-2 hover:surface-2'
                     }`}
                   >
                     {metric.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}

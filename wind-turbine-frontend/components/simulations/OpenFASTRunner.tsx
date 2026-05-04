@@ -226,7 +226,7 @@ export function OpenFASTRunner() {
                 setConfig({ ...config, duration: parseFloat(e.target.value) })
               }
               disabled={isRunning}
-              className="w-full px-3 py-2 border hairline rounded-md"
+              className="w-full px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
             />
             <div className="mt-2 text-sm ink-3">
               {(config.duration / 60).toFixed(1)} minutes
@@ -244,7 +244,7 @@ export function OpenFASTRunner() {
                 setConfig({ ...config, timestep: parseFloat(e.target.value) })
               }
               disabled={isRunning}
-              className="w-full px-3 py-2 border hairline rounded-md"
+              className="w-full px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
             >
               <option value="0.005">0.005s (200 Hz)</option>
               <option value="0.0125">0.0125s (80 Hz)</option>

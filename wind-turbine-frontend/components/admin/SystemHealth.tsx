@@ -144,7 +144,7 @@ export function SystemHealth() {
               <p className="text-3xl font-bold ink-1">{healthScore()}%</p>
               <p className="text-xs ink-2 mt-2">На основі всіх сервісів</p>
             </div>
-            <Activity className="w-8 h-8 text-blue-400" />
+            <Activity className="w-8 h-8 ink-3" />
           </div>
         </Card>
 
@@ -192,7 +192,8 @@ export function SystemHealth() {
           {services.map((service, idx) => (
             <Card
               key={idx}
-              className={`p-4 border-l-blue-500 ${getStatusColor(service.status)}`}
+              className={`p-4 border-l-2 hairline ${getStatusColor(service.status)}`}
+              style={{ borderLeftColor: 'hsl(var(--primary))' }}
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">

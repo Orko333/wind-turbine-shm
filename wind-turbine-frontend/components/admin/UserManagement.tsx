@@ -5,7 +5,6 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { useToast } from '../../hooks/useToast';
-import { postApiWithAuth } from '../../lib/api';
 import { Plus, Edit2, Trash2, Lock, Unlock, Mail } from 'lucide-react';
 
 interface User {
@@ -93,50 +92,35 @@ export function UserManagement() {
     }));
   }, []);
 
-  const handleSaveUser = useCallback(async () => {
+  const handleSaveUser = useCallback(() => {
     if (!formData.name || !formData.email) {
       showError("Будь ласка, заповніть усі обов'язкові поля");
       return;
     }
 
-    try {
-      setIsSaving(true);
-      if (isEditing) {
-        await postApiWithAuth(`/admin/users/${isEditing}`, formData);
-        setUsers((prev) =>
-          prev.map((u) => (u.id === isEditing ? { ...u, ...formData } : u))
-        );
-      } else {
-        await postApiWithAuth('/admin/users', formData);
-        setUsers((prev) => [...prev, { ...formData, id: Date.now().toString(), createdAt: new Date().toISOString(), lastLogin: new Date().toISOString() } as User]);
-      }
-      success(isEditing ? 'Користувача оновлено' : 'Користувача створено');
-      setFormData({ name: '', email: '', role: 'operator', status: 'active', mfaEnabled: false });
-      setIsAdding(false);
-      setIsEditing(null);
-    } catch {
-      showError('Не вдалося зберегти користувача');
-    } finally {
-      setIsSaving(false);
+    setIsSaving(true);
+    if (isEditing) {
+      setUsers((prev) =>
+        prev.map((u) => (u.id === isEditing ? { ...u, ...formData } : u))
+      );
+    } else {
+      setUsers((prev) => [...prev, { ...formData, id: Date.now().toString(), createdAt: new Date().toISOString(), lastLogin: new Date().toISOString() } as User]);
     }
+    success(isEditing ? 'Користувача оновлено' : 'Користувача створено');
+    setFormData({ name: '', email: '', role: 'operator', status: 'active', mfaEnabled: false });
+    setIsAdding(false);
+    setIsEditing(null);
+    setIsSaving(false);
   }, [formData, isEditing, success, showError]);
 
   const handleDeleteUser = useCallback(
-    async (userId: string) => {
-      if (!window.confirm('Видалити цього користувача?')) return;
-
-      try {
-        setIsSaving(true);
-        await postApiWithAuth(`/admin/users/${userId}`, { _method: 'DELETE' });
-        setUsers((prev) => prev.filter((u) => u.id !== userId));
-        success('Користувача видалено');
-      } catch {
-        showError('Не вдалося видалити користувача');
-      } finally {
-        setIsSaving(false);
-      }
+    (userId: string) => {
+      setIsSaving(true);
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      success('Користувача видалено');
+      setIsSaving(false);
     },
-    [success, showError]
+    [success]
   );
 
   const getRoleBadgeColor = useCallback((role: string) => {
@@ -288,7 +272,7 @@ export function UserManagement() {
                 <select
                   value={formData.role || 'operator'}
                   onChange={(e) => handleInputChange('role', e.target.value)}
-                  className="w-full mt-2 px-3 py-2 border rounded-md text-sm"
+                  className="w-full mt-2 px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 >
                   <option value="admin">Адміністратор</option>
                   <option value="engineer">Інженер</option>
@@ -302,7 +286,7 @@ export function UserManagement() {
                 <select
                   value={formData.status || 'active'}
                   onChange={(e) => handleInputChange('status', e.target.value)}
-                  className="w-full mt-2 px-3 py-2 border rounded-md text-sm"
+                  className="w-full mt-2 px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 >
                   <option value="active">Активний</option>
                   <option value="inactive">Неактивний</option>

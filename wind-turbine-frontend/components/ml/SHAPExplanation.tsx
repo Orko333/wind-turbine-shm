@@ -200,11 +200,11 @@ export function SHAPExplanation({ modelType = 'cnn' }: SHAPExplanationProps) {
     return (
       <Card className="p-6 hairline dark:border-red-800">
         <div className="text-center py-8">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h3 className="font-semibold signal-crit dark:text-red-400">
+          <AlertCircle className="w-12 h-12 signal-crit mx-auto mb-4" />
+          <h3 className="font-semibold signal-crit">
             Failed to Load SHAP Explanation
           </h3>
-          <p className="text-sm signal-crit dark:text-red-500 mt-2">
+          <p className="text-sm signal-crit dark:signal-crit mt-2">
             {error || 'Не вдалося отримати важливість ознак'}
           </p>
         </div>
@@ -244,7 +244,7 @@ export function SHAPExplanation({ modelType = 'cnn' }: SHAPExplanationProps) {
             </div>
             <div className="text-right">
               <p className="text-xs ink-3 dark:text-gray-400">Прогноз</p>
-              <p className="text-2xl font-bold signal-live dark:text-blue-400 mt-1">
+              <p className="text-2xl font-bold signal-live dark:ink-3 mt-1">
                 {data.model_prediction.toFixed(3)}
               </p>
             </div>
@@ -257,7 +257,7 @@ export function SHAPExplanation({ modelType = 'cnn' }: SHAPExplanationProps) {
             onClick={() => setActiveTab('bar')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'bar'
-                ? 'border-blue-600 signal-live dark:text-blue-400'
+                ? 'border-blue-600 signal-live dark:ink-3'
                 : 'border-transparent ink-3 dark:text-gray-400 hover:ink-1 dark:hover:text-gray-200'
             }`}
           >
@@ -267,7 +267,7 @@ export function SHAPExplanation({ modelType = 'cnn' }: SHAPExplanationProps) {
             onClick={() => setActiveTab('waterfall')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'waterfall'
-                ? 'border-blue-600 signal-live dark:text-blue-400'
+                ? 'border-blue-600 signal-live dark:ink-3'
                 : 'border-transparent ink-3 dark:text-gray-400 hover:ink-1 dark:hover:text-gray-200'
             }`}
           >
@@ -361,8 +361,8 @@ export function SHAPExplanation({ modelType = 'cnn' }: SHAPExplanationProps) {
                   <span
                     className={`text-sm font-semibold px-2 py-1 rounded ${
                       feature.shap_value > 0
-                        ? 'surface-3 dark:bg-red-900/30 signal-crit dark:text-red-400'
-                        : 'surface-3 dark:bg-green-900/30 signal-live dark:text-green-400'
+                        ? 'surface-3 signal-crit'
+                        : 'surface-3 signal-live'
                     }`}
                   >
                     {feature.shap_value > 0 ? '+' : ''}

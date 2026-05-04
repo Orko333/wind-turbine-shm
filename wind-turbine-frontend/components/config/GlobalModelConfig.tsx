@@ -243,7 +243,7 @@ export function GlobalModelConfig() {
                     e.target.value as 'minmax' | 'zscore' | 'robust'
                   )
                 }
-                className="mt-2 w-full px-3 py-2 border rounded-md text-sm"
+                className="mt-2 w-full px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
               >
                 <option value="minmax">Масштабування Min-Max</option>
                 <option value="zscore">Нормалізація Z-Score</option>

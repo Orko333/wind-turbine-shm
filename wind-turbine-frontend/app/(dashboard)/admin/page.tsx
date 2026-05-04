@@ -119,10 +119,10 @@ export default function AdminPage() {
 
           <Card className="p-6 surface-2 hairline border">
             <h3 className="font-semibold ink-1 mb-3">{t('admin.access_control')}</h3>
-            <p className="text-sm text-purple-800 mb-4">
+            <p className="text-sm ink-2 mb-4">
               {t('admin.access_control_desc')}
             </p>
-            <ul className="text-xs text-purple-700 space-y-1 ml-4">
+            <ul className="text-xs ink-2 space-y-1 ml-4">
               <li>• {t('admin.access_control_li1')}</li>
               <li>• {t('admin.access_control_li2')}</li>
               <li>• {t('admin.access_control_li3')}</li>

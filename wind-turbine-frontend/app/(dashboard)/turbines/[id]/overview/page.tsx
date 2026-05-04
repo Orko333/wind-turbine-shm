@@ -88,9 +88,12 @@ export default function OverviewPage() {
     );
   }
 
-  const power = currentData?.power_kw ?? turbine.power_kw;
-  const windSpeed = currentData?.wind_speed ?? turbine.wind_speed;
-  const rotorRPM = currentData?.rotor_rpm ?? turbine.rotor_rpm;
+  const power = currentData?.power_kw ?? turbine.power_kw ?? 0;
+  const windSpeed = currentData?.wind_speed ?? turbine.wind_speed ?? 0;
+  const rotorRPM = currentData?.rotor_rpm ?? turbine.rotor_rpm ?? 0;
+  const ratedPower = turbine.rated_power_kw ?? 1;
+  const damageRate = turbine.damage_rate ?? 0;
+  const rulYears = turbine.rul_years ?? 0;
 
   return (
     <div className="space-y-6">
@@ -104,17 +107,17 @@ export default function OverviewPage() {
               <p className="text-3xl font-bold mt-2">{Math.round(power)}</p>
               <p className="text-sm text-muted-foreground mt-1">{t('common.kw')}</p>
             </div>
-            <Zap className="w-8 h-8 text-yellow-500" />
+            <Zap className="w-8 h-8 signal-warn" />
           </div>
           <div className="mt-4 pt-4 border-t">
             <p className="text-xs text-muted-foreground">
-              {t('turbines.rated', { n: turbine.rated_power_kw })}
+              {t('turbines.rated', { n: ratedPower })}
             </p>
             <div className="mt-2 bg-muted rounded-full h-2 overflow-hidden">
               <div
                 className="h-full surface-20 transition-all"
                 style={{
-                  width: `${Math.min(100, (power / turbine.rated_power_kw) * 100)}%`,
+                  width: `${Math.min(100, (power / ratedPower) * 100)}%`,
                 }}
               />
             </div>
@@ -129,7 +132,7 @@ export default function OverviewPage() {
               <p className="text-3xl font-bold mt-2">{windSpeed.toFixed(1)}</p>
               <p className="text-sm text-muted-foreground mt-1">m/s</p>
             </div>
-            <Wind className="w-8 h-8 text-blue-500" />
+            <Wind className="w-8 h-8 signal-live" />
           </div>
         </Card>
 
@@ -141,7 +144,7 @@ export default function OverviewPage() {
               <p className="text-3xl font-bold mt-2">{rotorRPM.toFixed(1)}</p>
               <p className="text-sm text-muted-foreground mt-1">RPM</p>
             </div>
-            <Gauge className="w-8 h-8 text-purple-500" />
+            <Gauge className="w-8 h-8 ink-2" />
           </div>
         </Card>
       </div>
@@ -165,13 +168,13 @@ export default function OverviewPage() {
                 {t('turbines.cumulative_damage')}
               </span>
               <span className="font-semibold">
-                {turbine.damage_rate.toFixed(2)}%
+                {damageRate.toFixed(2)}%
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{t('turbines.rul')}</span>
               <span className="font-semibold">
-                {turbine.rul_years.toFixed(1)} {t('turbines.years_short')}
+                {rulYears.toFixed(1)} {t('turbines.years_short')}
               </span>
             </div>
           </div>
@@ -184,7 +187,7 @@ export default function OverviewPage() {
             <div className="space-y-3">
               {recentAlerts.map((alert) => (
                 <div key={alert.id} className="flex gap-3 pb-3 border-b last:pb-0 last:border-0">
-                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-yellow-500" />
+                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 signal-warn" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium line-clamp-2">
                       {alert.message}

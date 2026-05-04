@@ -108,26 +108,26 @@ export function CNNClassification({ turbineId }: CNNClassificationProps) {
     switch (damageClass) {
       case 'Healthy':
         return {
-          bg: 'surface-2 dark:bg-green-900/30',
-          text: 'signal-live dark:text-green-400',
+          bg: 'surface-2',
+          text: 'signal-live',
           icon: <CheckCircle className="w-5 h-5" />,
         };
       case 'Minor':
         return {
           bg: 'surface-2 dark:bg-blue-900/30',
-          text: 'ink-2 dark:text-blue-400',
+          text: 'ink-2 dark:ink-3',
           icon: <AlertCircle className="w-5 h-5" />,
         };
       case 'Moderate':
         return {
           bg: 'surface-2 dark:bg-yellow-900/30',
-          text: 'signal-warn dark:text-yellow-400',
+          text: 'signal-warn',
           icon: <AlertTriangle className="w-5 h-5" />,
         };
       case 'Severe':
         return {
-          bg: 'surface-2 dark:bg-red-900/30',
-          text: 'signal-crit dark:text-red-400',
+          bg: 'surface-2',
+          text: 'signal-crit',
           icon: <AlertCircle className="w-5 h-5" />,
         };
       default:
@@ -151,11 +151,11 @@ export function CNNClassification({ turbineId }: CNNClassificationProps) {
     return (
       <Card className="p-6 hairline dark:border-red-800">
         <div className="text-center py-8">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h3 className="font-semibold signal-crit dark:text-red-400">
+          <AlertCircle className="w-12 h-12 signal-crit mx-auto mb-4" />
+          <h3 className="font-semibold signal-crit">
             Failed to Load CNN Predictions
           </h3>
-          <p className="text-sm signal-crit dark:text-red-500 mt-2">
+          <p className="text-sm signal-crit dark:signal-crit mt-2">
             {error || 'Не вдалося отримати прогнози моделі'}
           </p>
         </div>
@@ -221,7 +221,7 @@ export function CNNClassification({ turbineId }: CNNClassificationProps) {
                       <span
                         className={`text-sm font-semibold ${
                           isHighest
-                            ? 'signal-live dark:text-blue-400'
+                            ? 'signal-live dark:ink-3'
                             : 'ink-3 dark:text-gray-400'
                         }`}
                       >
@@ -232,7 +232,7 @@ export function CNNClassification({ turbineId }: CNNClassificationProps) {
                       <div
                         className={`h-2 rounded-full transition-all ${
                           isHighest
-                            ? 'bg-blue-600 dark:bg-blue-400'
+                            ? 'surface-3 dark:bg-blue-400'
                             : 'bg-gray-400 dark:surface-20'
                         }`}
                         style={{ width: `${percentage}%` }}

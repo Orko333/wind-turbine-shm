@@ -141,7 +141,7 @@ export default function FatiguePage() {
             <Line
               type="monotone"
               dataKey="rul"
-              stroke="#3b82f6"
+              stroke="hsl(38 90% 58%)"
               strokeWidth={2}
               dot={false}
               name={t('turbines.predicted_rul')}
@@ -170,7 +170,7 @@ export default function FatiguePage() {
             <XAxis dataKey="bin" />
             <YAxis label={{ value: 'Count', angle: -90, position: 'insideLeft' }} />
             <Tooltip />
-            <Bar dataKey="count" fill="#8b5cf6" name={t('turbines.load_cycles')} />
+            <Bar dataKey="count" fill="hsl(168 60% 56%)" name={t('turbines.load_cycles')} />
           </BarChart>
         </ResponsiveContainer>
       </Card>
@@ -202,7 +202,7 @@ export default function FatiguePage() {
             <Line
               type="monotone"
               dataKey="stress"
-              stroke="#06b6d4"
+              stroke="hsl(168 60% 56%)"
               dot={false}
               name={t('turbines.material_strength')}
               isAnimationActive={false}

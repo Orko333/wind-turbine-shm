@@ -153,7 +153,7 @@ export function ROMStressAnalysis() {
                   onChange={(e) =>
                     setConfig({ ...config, height: parseFloat(e.target.value) })
                   }
-                  className="w-full px-3 py-2 border hairline rounded-md"
+                  className="w-full px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
@@ -171,7 +171,7 @@ export function ROMStressAnalysis() {
                   onChange={(e) =>
                     setConfig({ ...config, diameter: parseFloat(e.target.value) })
                   }
-                  className="w-full px-3 py-2 border hairline rounded-md"
+                  className="w-full px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
@@ -185,7 +185,7 @@ export function ROMStressAnalysis() {
                   onChange={(e) =>
                     setConfig({ ...config, modes: parseInt(e.target.value) })
                   }
-                  className="w-full px-3 py-2 border hairline rounded-md"
+                  className="w-full px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 >
                   <option value="3">3 modes</option>
                   <option value="5">5 modes</option>
@@ -243,7 +243,7 @@ export function ROMStressAnalysis() {
               </div>
 
               {force > maxForceCapacity() && (
-                <div className="mt-3 p-3 surface-3 border border-red-300 rounded flex items-center gap-2">
+                <div className="mt-3 p-3 surface-3 hairline border rounded flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 signal-crit" />
                   <p className="text-sm signal-crit">
                     Force exceeds maximum capacity

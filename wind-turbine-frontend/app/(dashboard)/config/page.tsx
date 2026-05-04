@@ -75,7 +75,7 @@ export default function ConfigPage() {
                 onClick={() => setActiveTab(tab.id as ConfigTab)}
                 className={`p-4 rounded-lg border-2 text-left transition-colors ${
                   isActive
-                    ? 'border-blue-500 surface-2'
+                    ? 'border-amber-500 surface-2'
                     : 'hairline surface-1 hover:hairline'
                 }`}
               >

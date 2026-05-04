@@ -75,7 +75,7 @@ export default function ReportsPage() {
                 onClick={() => setActiveTab(tab.id as ReportsTab)}
                 className={`p-4 rounded-lg border-2 text-left transition-colors ${
                   isActive
-                    ? 'border-blue-500 surface-2'
+                    ? 'border-amber-500 surface-2'
                     : 'hairline surface-1 hover:hairline'
                 }`}
               >
@@ -119,7 +119,7 @@ export default function ReportsPage() {
           <Card className="p-6 surface-2 hairline border">
             <p className="text-sm font-medium ink-2 mb-2">{t('reports.storage_used')}</p>
             <p className="text-3xl font-bold ink-1">47.2 MB</p>
-            <p className="text-xs text-purple-700 mt-2">{t('reports.storage_avail', { n: '1 GB' })}</p>
+            <p className="text-xs ink-2 mt-2">{t('reports.storage_avail', { n: '1 GB' })}</p>
           </Card>
 
           <Card className="p-6 surface-2 hairline border">

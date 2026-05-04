@@ -85,11 +85,11 @@ export function Spectrogram({
   // Отримати колір на основі потужності
   const getPowerColor = (power: number) => {
     const normalized = (power + 50) / 40; // Нормалізація діапазону -50 до -10
-    if (normalized < 0.2) return '#e5e7eb'; // сірий
-    if (normalized < 0.4) return '#93c5fd'; // світло-блакитний
-    if (normalized < 0.6) return '#3b82f6'; // синій
-    if (normalized < 0.8) return '#ef4444'; // червоний
-    return '#991b1b'; // темно-червоний
+    if (normalized < 0.2) return 'hsl(28 8% 22%)';   // ink-3
+    if (normalized < 0.4) return 'hsl(168 30% 35%)'; // dim teal
+    if (normalized < 0.6) return 'hsl(168 60% 56%)'; // signal-live
+    if (normalized < 0.8) return 'hsl(38 90% 58%)';  // amber
+    return 'hsl(6 72% 62%)';                          // signal-crit
   };
 
   const customTooltip = (props: unknown) => {
@@ -168,12 +168,12 @@ export function Spectrogram({
             </div>
             <div className="p-3 rounded-lg surface-2 border hairline">
               <p className="text-xs font-medium ink-1 mb-1">{t('monitoring.spectrogram.mode_3')}</p>
-              <p className="text-sm font-bold text-purple-700">2.15 Hz</p>
+              <p className="text-sm font-bold ink-2">2.15 Hz</p>
               <p className="text-xs ink-2">{t('monitoring.spectrogram.torsional')}</p>
             </div>
             <div className="p-3 rounded-lg surface-2 border hairline">
               <p className="text-xs font-medium signal-warn mb-1">{t('monitoring.spectrogram.mode_4')}</p>
-              <p className="text-sm font-bold text-orange-700">3.42 Hz</p>
+              <p className="text-sm font-bold signal-warn">3.42 Hz</p>
               <p className="text-xs signal-warn">{t('monitoring.spectrogram.higher_order')}</p>
             </div>
           </div>
@@ -189,7 +189,7 @@ export function Spectrogram({
 
             <div className="space-y-3">
               {peaks.map((peak, idx) => (
-                <div key={idx} className="p-4 rounded-lg border-2 hairline hover:border-blue-300 transition-colors">
+                <div key={idx} className="p-4 rounded-lg border-2 hairline hover:hairline transition-colors">
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <p className="font-semibold text-lg">{peak.frequency.toFixed(2)} Hz</p>
@@ -231,7 +231,7 @@ export function Spectrogram({
               </div>
 
               {/* Сповіщення про резонанс */}
-              <div className="p-4 rounded-lg surface-3 border-l-red-600">
+              <div className="p-4 rounded-lg surface-3 border-l-2 hairline" style={{ borderLeftColor: 'hsl(var(--signal-crit))' }}>
                 <p className="text-sm font-semibold signal-crit mb-2">{t('monitoring.spectrogram.resonance')}</p>
                 <p className="text-sm signal-crit">
                   {t('monitoring.spectrogram.resonance_desc')}
@@ -289,7 +289,7 @@ export function Spectrogram({
               <span className="text-xs font-medium">{t('monitoring.spectrogram.low_power')}</span>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-400 rounded border border-blue-500" />
+              <div className="w-8 h-8 bg-blue-400 rounded border hairline" />
               <span className="text-xs font-medium">{t('monitoring.spectrogram.moderate')}</span>
             </div>
             <div className="flex items-center gap-3">

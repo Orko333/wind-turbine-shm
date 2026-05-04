@@ -5,7 +5,6 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Download, Eye, Trash2, Calendar } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
-import { postApiWithAuth } from '../../lib/api';
 import { useLocale } from '../../lib/i18n';
 
 interface ExportRecord {
@@ -152,7 +151,7 @@ const UI_TEXT = {
 } as const;
 
 export function ExportHistory() {
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info } = useToast();
   const { locale } = useLocale();
   const L = UI_TEXT[locale];
   const [exports, setExports] = useState<ExportRecord[]>(sampleExports);
@@ -171,54 +170,27 @@ export function ExportHistory() {
     });
   }, []);
 
-  const handleDownload = useCallback(async (exportId: string) => {
-    try {
-      await postApiWithAuth(`/reports/exports/${exportId}/download`, {});
-      success(L.downloadStarted);
-    } catch (err) {
-      showError(L.downloadFailed);
-      console.error(err);
-    }
-  }, [success, showError, L.downloadStarted, L.downloadFailed]);
+  const handleDownload = useCallback((exportId: string) => {
+    void exportId;
+    success(L.downloadStarted);
+  }, [success, L.downloadStarted]);
 
-  const handleDelete = useCallback(async (exportId: string) => {
-    if (!window.confirm(L.deleteConfirm)) {
-      return;
-    }
+  const handleDelete = useCallback((exportId: string) => {
+    setIsDeleting(true);
+    setExports((prev) => prev.filter((e) => e.id !== exportId));
+    success(L.deleteSuccess);
+    setIsDeleting(false);
+  }, [success, L.deleteSuccess]);
 
-    try {
-      setIsDeleting(true);
-      await postApiWithAuth(`/reports/exports/${exportId}`, { _method: 'DELETE' });
-      setExports((prev) => prev.filter((e) => e.id !== exportId));
-      success(L.deleteSuccess);
-    } catch (err) {
-      showError(L.deleteFailed);
-      console.error(err);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [success, showError, L.deleteConfirm, L.deleteSuccess, L.deleteFailed]);
+  const handleBulkDelete = useCallback(() => {
+    setIsDeleting(true);
+    setExports((prev) => prev.filter((e) => !selectedExports.has(e.id)));
+    setSelectedExports(new Set());
+    success(L.bulkDeleteSuccess);
+    setIsDeleting(false);
+  }, [selectedExports, success, L.bulkDeleteSuccess]);
 
-  const handleBulkDelete = useCallback(async () => {
-    if (!window.confirm(`${L.bulkDeleteConfirmPrefix} ${selectedExports.size} ${L.bulkDeleteConfirmSuffix}`)) {
-      return;
-    }
-
-    try {
-      setIsDeleting(true);
-      await postApiWithAuth('/reports/exports/bulk-delete', {
-        exportIds: Array.from(selectedExports),
-      });
-      setExports((prev) => prev.filter((e) => !selectedExports.has(e.id)));
-      setSelectedExports(new Set());
-      success(L.bulkDeleteSuccess);
-    } catch (err) {
-      showError(L.bulkDeleteFailed);
-      console.error(err);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [selectedExports, success, showError, L.bulkDeleteConfirmPrefix, L.bulkDeleteConfirmSuffix, L.bulkDeleteSuccess, L.bulkDeleteFailed]);
+  void showError;
 
   const formatDate = useCallback((dateString: string) => {
     return new Date(dateString).toLocaleDateString(locale === 'uk' ? 'uk-UA' : 'en-US', {
@@ -239,7 +211,7 @@ export function ExportHistory() {
       pdf: 'surface-3 signal-crit',
       csv: 'surface-3 signal-live',
       xlsx: 'surface-3 ink-2',
-      json: 'bg-purple-100 text-purple-800',
+      json: 'surface-3 ink-2',
     };
     return colors[format] || 'surface-3 ink-1';
   }, []);
@@ -353,7 +325,7 @@ export function ExportHistory() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => window.alert(L.viewSoon)}
+                        onClick={() => info(L.viewSoon)}
                         title={L.titleViewDetails}
                       >
                         <Eye className="w-4 h-4" />

@@ -36,7 +36,7 @@ const DARK_STYLE = {
 export function SystemMap({
   turbines,
   isLoading,
-  center = { latitude: 51.5074, longitude: -0.1278 },
+  center,
   zoom = 6,
 }: SystemMapProps) {
   const t = useT();
@@ -46,21 +46,27 @@ export function SystemMap({
   const [mapLoaded, setMapLoaded] = useState(false);
   const markers = useRef<maplibregl.Marker[]>([]);
 
+  const lat = center?.latitude ?? 51.5074;
+  const lng = center?.longitude ?? -0.1278;
+
   useEffect(() => {
-    if (!mapContainer.current) return;
+    if (!mapContainer.current || map.current) return;
     try {
       map.current = new maplibregl.Map({
         container: mapContainer.current,
         style: DARK_STYLE,
-        center: [center.longitude, center.latitude],
+        center: [lng, lat],
         zoom,
       });
       map.current.on('load', () => setMapLoaded(true));
     } catch (e) {
       console.error('Map init failed:', e);
     }
-    return () => { map.current?.remove(); };
-  }, [center, zoom]);
+    return () => {
+      map.current?.remove();
+      map.current = null;
+    };
+  }, [lat, lng, zoom]);
 
   useEffect(() => {
     if (!map.current || !mapLoaded || !turbines.length) return;
@@ -89,11 +95,13 @@ export function SystemMap({
 
       const el = document.createElement('div');
       el.className = 'cursor-pointer relative';
-      el.style.width = '12px';
-      el.style.height = '12px';
+      el.style.width = '16px';
+      el.style.height = '16px';
       el.style.borderRadius = '9999px';
       el.style.background = c;
-      el.style.boxShadow = `0 0 0 2px hsl(30 10% 5%), 0 0 12px ${c}`;
+      el.style.border = '2px solid hsl(30 10% 5%)';
+      el.style.boxShadow = `0 0 0 1px ${c}, 0 0 18px ${c}`;
+      el.title = t.turbine_id;
 
       new maplibregl.Marker(el)
         .setLngLat([longitude, latitude])

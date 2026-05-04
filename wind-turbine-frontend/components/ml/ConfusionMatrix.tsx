@@ -71,7 +71,7 @@ export function ConfusionMatrix({
         {/* Показник точності */}
         <div className="surface-2 dark:bg-blue-900/30 rounded-lg p-4 border hairline dark:border-blue-800">
           <p className="text-sm ink-3 dark:text-gray-400">Gаальна точність</p>
-          <p className="text-2xl font-bold signal-live dark:text-blue-400">{accuracy.toFixed(1)}%</p>
+          <p className="text-2xl font-bold signal-live dark:ink-3">{accuracy.toFixed(1)}%</p>
         </div>
 
         {/* Матриця */}

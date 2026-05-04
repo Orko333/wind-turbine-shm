@@ -113,8 +113,8 @@ export default function HealthPage() {
             <YAxis yAxisId="right" orientation="right" label={{ value: t('turbines.damping_pct'), angle: 90, position: 'insideRight' }} />
             <Tooltip />
             <Legend />
-            <Bar yAxisId="left" dataKey="frequency" fill="#3b82f6" name={t('turbines.frequency_hz')} />
-            <Bar yAxisId="right" dataKey="damping" fill="#10b981" name={t('turbines.damping_pct')} />
+            <Bar yAxisId="left" dataKey="frequency" fill="hsl(38 90% 58%)" name={t('turbines.frequency_hz')} />
+            <Bar yAxisId="right" dataKey="damping" fill="hsl(168 60% 56%)" name={t('turbines.damping_pct')} />
           </BarChart>
         </ResponsiveContainer>
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -212,7 +212,7 @@ export default function HealthPage() {
             <Line
               type="monotone"
               dataKey="settlement"
-              stroke="#8b5cf6"
+              stroke="hsl(168 60% 56%)"
               dot={false}
               name={t('turbines.foundation_settlement')}
               isAnimationActive={false}
@@ -244,7 +244,7 @@ export default function HealthPage() {
             <XAxis dataKey="frequency" />
             <YAxis label={{ value: t('turbines.vibration_amplitude'), angle: -90, position: 'insideLeft' }} />
             <Tooltip />
-            <Bar dataKey="amplitude" fill="#06b6d4" name={t('turbines.vibration_amplitude')} />
+            <Bar dataKey="amplitude" fill="hsl(168 60% 56%)" name={t('turbines.vibration_amplitude')} />
           </BarChart>
         </ResponsiveContainer>
         <p className="text-sm text-muted-foreground mt-4">

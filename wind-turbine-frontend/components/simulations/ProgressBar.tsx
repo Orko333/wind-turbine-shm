@@ -83,7 +83,7 @@ export function ProgressBar({
               key={checkpoint}
               className={`h-2 w-2 rounded-full transition-colors ${
                 progress >= checkpoint
-                  ? 'bg-blue-600'
+                  ? 'surface-3'
                   : 'bg-gray-300'
               }`}
             />

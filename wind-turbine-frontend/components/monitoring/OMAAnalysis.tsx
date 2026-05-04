@@ -184,7 +184,7 @@ export function OMAAnalysis({
                   key={mode.mode}
                   className={`p-3 rounded-lg border-2 transition-colors cursor-pointer ${
                     selectedMode === mode.mode
-                      ? 'border-blue-500 surface-2'
+                      ? 'hairline surface-2'
                       : 'hairline hover:hairline'
                   }`}
                 >
@@ -316,7 +316,7 @@ export function OMAAnalysis({
             </div>
             <div className="p-3 rounded-lg surface-2 border hairline">
               <p className="text-xs font-medium ink-1 mb-1">{t('monitoring.oma.damping_label')}</p>
-              <p className="text-xs text-purple-800">
+              <p className="text-xs ink-2">
                 {t('monitoring.oma.damping_struct', { n: selectedModeData?.damping.toFixed(1) ?? '' })}
               </p>
             </div>

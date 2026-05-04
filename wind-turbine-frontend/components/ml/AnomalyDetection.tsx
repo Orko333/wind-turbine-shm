@@ -146,7 +146,7 @@ export function AnomalyDetection({ turbineId }: AnomalyDetectionProps) {
             Error: {payload.reconstruction_error.toFixed(3)}
           </p>
           {payload.is_anomaly && (
-            <p className="text-sm signal-crit dark:text-red-400 font-semibold mt-1">
+            <p className="text-sm signal-crit font-semibold mt-1">
               Аномалію виявлено
             </p>
           )}
@@ -168,11 +168,11 @@ export function AnomalyDetection({ turbineId }: AnomalyDetectionProps) {
     return (
       <Card className="p-6 hairline dark:border-red-800">
         <div className="text-center py-8">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h3 className="font-semibold signal-crit dark:text-red-400">
+          <AlertCircle className="w-12 h-12 signal-crit mx-auto mb-4" />
+          <h3 className="font-semibold signal-crit">
             Failed to Load Anomaly Detection
           </h3>
-          <p className="text-sm signal-crit dark:text-red-500 mt-2">
+          <p className="text-sm signal-crit dark:signal-crit mt-2">
             {error || 'Не вдалося отримати дані аномалій'}
           </p>
         </div>
@@ -199,8 +199,8 @@ export function AnomalyDetection({ turbineId }: AnomalyDetectionProps) {
           <div
             className={`rounded-lg p-4 border-2 ${
               data.is_current_anomaly
-                ? 'surface-2 dark:bg-red-900/30 hairline dark:border-red-800'
-                : 'surface-2 dark:bg-green-900/30 hairline dark:border-green-800'
+                ? 'surface-2 hairline dark:border-red-800'
+                : 'surface-2 hairline dark:border-green-800'
             }`}
           >
             <p className="text-sm font-medium ink-3 dark:text-gray-400">
@@ -238,7 +238,7 @@ export function AnomalyDetection({ turbineId }: AnomalyDetectionProps) {
                   {data.anomaly_trend}
                 </p>
               </div>
-              <TrendingUp className="w-5 h-5 ink-2 dark:text-purple-400" />
+              <TrendingUp className="w-5 h-5 ink-2 dark:ink-3" />
             </div>
           </div>
         </div>
@@ -249,7 +249,7 @@ export function AnomalyDetection({ turbineId }: AnomalyDetectionProps) {
             <label className="text-sm font-medium ink-2 dark:text-gray-300">
               Поріг аномалій (регульований)
             </label>
-            <span className="text-sm font-semibold signal-live dark:text-blue-400">
+            <span className="text-sm font-semibold signal-live dark:ink-3">
               {threshold.toFixed(2)}
             </span>
           </div>

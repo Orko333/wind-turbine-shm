@@ -125,10 +125,10 @@ export function FederatedStatus({ numberOfParks = 12 }: FederatedStatusProps) {
           </p>
           {payload.accuracy && (
             <>
-              <p className="text-sm signal-live dark:text-blue-400 font-semibold">
+              <p className="text-sm signal-live dark:ink-3 font-semibold">
                 Accuracy: {(payload.accuracy * 100).toFixed(1)}%
               </p>
-              <p className="text-sm signal-crit dark:text-red-400">
+              <p className="text-sm signal-crit">
                 Loss: {payload.loss.toFixed(3)}
               </p>
             </>
@@ -151,11 +151,11 @@ export function FederatedStatus({ numberOfParks = 12 }: FederatedStatusProps) {
     return (
       <Card className="p-6 hairline dark:border-red-800">
         <div className="text-center py-8">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h3 className="font-semibold signal-crit dark:text-red-400">
+          <AlertCircle className="w-12 h-12 signal-crit mx-auto mb-4" />
+          <h3 className="font-semibold signal-crit">
             Failed to Load Federated Status
           </h3>
-          <p className="text-sm signal-crit dark:text-red-500 mt-2">
+          <p className="text-sm signal-crit dark:signal-crit mt-2">
             {error || 'Не вдалося отримати статус навчання'}
           </p>
         </div>
@@ -179,7 +179,7 @@ export function FederatedStatus({ numberOfParks = 12 }: FederatedStatusProps) {
             </p>
           </div>
           {data.is_training && (
-            <div className="flex items-center gap-2 px-3 py-1 surface-3 dark:bg-green-900/30 signal-live dark:text-green-400 rounded-full">
+            <div className="flex items-center gap-2 px-3 py-1 surface-3 signal-live rounded-full">
               <Activity className="w-4 h-4 animate-pulse" />
               <span className="text-sm font-medium">Навчання</span>
             </div>
@@ -191,15 +191,15 @@ export function FederatedStatus({ numberOfParks = 12 }: FederatedStatusProps) {
           {/* Глобальна точність */}
           <div className="rounded-lg p-4 surface-2 dark:bg-blue-900/30 border hairline dark:border-blue-800">
             <p className="text-xs ink-3 dark:text-gray-400">Глобальна точність</p>
-            <p className="text-2xl font-bold signal-live dark:text-blue-400 mt-2">
+            <p className="text-2xl font-bold signal-live dark:ink-3 mt-2">
               {(data.global_accuracy * 100).toFixed(1)}%
             </p>
           </div>
 
           {/* Локальна точність */}
-          <div className="rounded-lg p-4 surface-2 dark:bg-green-900/30 border hairline dark:border-green-800">
+          <div className="rounded-lg p-4 surface-2 border hairline dark:border-green-800">
             <p className="text-xs ink-3 dark:text-gray-400">Локальна точність</p>
-            <p className="text-2xl font-bold signal-live dark:text-green-400 mt-2">
+            <p className="text-2xl font-bold signal-live mt-2">
               {(data.local_accuracy * 100).toFixed(1)}%
             </p>
           </div>
@@ -207,7 +207,7 @@ export function FederatedStatus({ numberOfParks = 12 }: FederatedStatusProps) {
           {/* Парки, що беруть участь */}
           <div className="rounded-lg p-4 surface-2 dark:bg-purple-900/30 border hairline dark:border-purple-800">
             <p className="text-xs ink-3 dark:text-gray-400">Учасні парки</p>
-            <p className="text-2xl font-bold ink-2 dark:text-purple-400 mt-2">
+            <p className="text-2xl font-bold ink-2 dark:ink-3 mt-2">
               {data.contributing_parks}/{numberOfParks}
             </p>
           </div>
@@ -227,7 +227,7 @@ export function FederatedStatus({ numberOfParks = 12 }: FederatedStatusProps) {
             <p className="text-sm font-medium ink-2 dark:text-gray-300">
               Загальний прогрес навчання
             </p>
-            <span className="text-sm font-semibold signal-live dark:text-blue-400">
+            <span className="text-sm font-semibold signal-live dark:ink-3">
               {progressPercentage.toFixed(0)}%
             </span>
           </div>
@@ -327,12 +327,12 @@ export function FederatedStatus({ numberOfParks = 12 }: FederatedStatusProps) {
                       {version.timestamp}
                     </td>
                     <td className="py-3 px-3">
-                      <span className="px-2 py-1 surface-3 dark:bg-green-900/30 signal-live dark:text-green-400 rounded text-xs font-semibold">
+                      <span className="px-2 py-1 surface-3 signal-live rounded text-xs font-semibold">
                         {(version.accuracy_local * 100).toFixed(1)}%
                       </span>
                     </td>
                     <td className="py-3 px-3">
-                      <span className="px-2 py-1 surface-3 dark:bg-blue-900/30 ink-2 dark:text-blue-400 rounded text-xs font-semibold">
+                      <span className="px-2 py-1 surface-3 dark:bg-blue-900/30 ink-2 dark:ink-3 rounded text-xs font-semibold">
                         {(version.accuracy_global * 100).toFixed(1)}%
                       </span>
                     </td>

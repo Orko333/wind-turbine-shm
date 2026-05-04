@@ -165,10 +165,10 @@ export function LSTMPrediction({ turbineId }: LSTMPredictionProps) {
           <p className="text-sm font-medium ink-1 dark:text-white">
             {payload.timestamp}
           </p>
-          <p className="text-sm signal-live dark:text-blue-400 font-semibold">
+          <p className="text-sm signal-live dark:ink-3 font-semibold">
             LSTM RUL: {payload.rul_lstm.toFixed(0)} days
           </p>
-          <p className="text-sm signal-live dark:text-green-400">
+          <p className="text-sm signal-live">
             Physics RUL: {payload.rul_physics.toFixed(0)} days
           </p>
           <p className="text-xs ink-3 dark:text-gray-400 mt-1">
@@ -192,11 +192,11 @@ export function LSTMPrediction({ turbineId }: LSTMPredictionProps) {
     return (
       <Card className="p-6 hairline dark:border-red-800">
         <div className="text-center py-8">
-          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h3 className="font-semibold signal-crit dark:text-red-400">
+          <AlertTriangle className="w-12 h-12 signal-crit mx-auto mb-4" />
+          <h3 className="font-semibold signal-crit">
             Failed to Load LSTM Predictions
           </h3>
-          <p className="text-sm signal-crit dark:text-red-500 mt-2">
+          <p className="text-sm signal-crit dark:signal-crit mt-2">
             {error || 'Не вдалося отримати прогноз RUL'}
           </p>
         </div>
@@ -247,7 +247,7 @@ export function LSTMPrediction({ turbineId }: LSTMPredictionProps) {
           <div
             className={`rounded-lg p-4 border-2 ${
               !isLSTMBetter
-                ? 'surface-2 dark:bg-green-900/30 hairline dark:border-green-800'
+                ? 'surface-2 hairline dark:border-green-800'
                 : 'surface-2 dark:bg-gray-800 hairline dark:border-gray-700'
             }`}
           >

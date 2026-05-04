@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { postApiWithAuth } from '../../lib/api';
 import { Download, Filter, Search } from 'lucide-react';
 
 interface AuditLog {
@@ -113,16 +112,20 @@ export function AuditLogs() {
     });
   }, [logs, searchQuery, actionFilter, statusFilter]);
 
-  const handleExport = useCallback(async () => {
-    try {
-      await postApiWithAuth('/admin/audit-logs/export', {
-        format: 'csv',
-        filters: { actionFilter, statusFilter },
-      });
-    } catch {
-      // Помилка експорту обробляється API
-    }
-  }, [actionFilter, statusFilter]);
+  const handleExport = useCallback(() => {
+    const headers = ['timestamp', 'user', 'action', 'resource', 'status', 'ip'];
+    const rows = filteredLogs().map((l) =>
+      [l.timestamp, l.userName, l.action, l.resource, l.status, l.ipAddress].map((v) => `"${v}"`).join(',')
+    );
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [filteredLogs]);
 
   const getActionBadgeColor = useCallback((action: string) => {
     const colors: Record<string, string> = {
@@ -130,7 +133,7 @@ export function AuditLogs() {
       EDIT: 'surface-3 ink-2',
       DELETE: 'surface-3 signal-crit',
       VIEW: 'surface-3 ink-1',
-      LOGIN: 'bg-purple-100 text-purple-800',
+      LOGIN: 'surface-3 signal-warn',
     };
     return colors[action] || 'surface-3 ink-1';
   }, []);
@@ -179,7 +182,7 @@ export function AuditLogs() {
               <select
                 value={actionFilter}
                 onChange={(e) => setActionFilter(e.target.value)}
-                className="w-full mt-2 px-3 py-2 border rounded-md text-sm"
+                className="w-full mt-2 px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
               >
                 <option value="">Всі дії</option>
                 <option value="CREATE">Створити</option>
@@ -195,7 +198,7 @@ export function AuditLogs() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as 'all' | 'success' | 'failure')}
-                className="w-full mt-2 px-3 py-2 border rounded-md text-sm"
+                className="w-full mt-2 px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
               >
                 <option value="all">Всі статуси</option>
                 <option value="success">Успішно</option>
