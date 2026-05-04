@@ -53,6 +53,31 @@ const UI_TEXT = {
     saving: 'Saving...',
     saveSchedule: 'Save Schedule',
     automatedTitle: 'Automated Report Scheduling',
+    freqDaily: 'Daily',
+    freqWeekly: 'Weekly',
+    freqMonthly: 'Monthly',
+    freqQuarterly: 'Quarterly',
+    atTime: 'at',
+    onWeekday: 'on',
+    onDayOfMonth: 'on day',
+    excelFormat: 'Excel',
+    namePlaceholder: 'e.g., Daily Performance Summary',
+    bulletDaily: 'Daily Reports',
+    bulletDailyDesc: 'Generated and sent every day at the specified time.',
+    bulletWeekly: 'Weekly Reports',
+    bulletWeeklyDesc: 'Generated on the selected day each week. Useful for regular team updates.',
+    bulletMonthly: 'Monthly Reports',
+    bulletMonthlyDesc: 'Generated on the selected day each month. Commonly used for management summaries.',
+    bulletMulti: 'Multiple Recipients',
+    bulletMultiDesc: 'Send to multiple email addresses for team distribution.',
+    bulletToggle: 'Enable/Disable',
+    bulletToggleDesc: 'Toggle schedules on/off without deleting them. Useful for seasonal adjustments.',
+    metricPower: 'Power Output',
+    metricEfficiency: 'Efficiency',
+    metricAvailability: 'Availability',
+    metricDamage: 'Damage',
+    metricRul: 'RUL',
+    metricVibration: 'Vibration',
   },
   uk: {
     promptEmail: 'Введіть адресу email:',
@@ -83,6 +108,31 @@ const UI_TEXT = {
     saving: 'Збереження...',
     saveSchedule: 'Зберегти розклад',
     automatedTitle: 'Автоматичний розклад звітів',
+    freqDaily: 'Щодня',
+    freqWeekly: 'Щотижня',
+    freqMonthly: 'Щомісяця',
+    freqQuarterly: 'Щокварталу',
+    atTime: 'о',
+    onWeekday: ',',
+    onDayOfMonth: ', день',
+    excelFormat: 'Excel',
+    namePlaceholder: 'напр., Щоденний звіт продуктивності',
+    bulletDaily: 'Щоденні звіти',
+    bulletDailyDesc: 'Генеруються та надсилаються щодня у вказаний час.',
+    bulletWeekly: 'Щотижневі звіти',
+    bulletWeeklyDesc: 'Генеруються у вибраний день тижня. Корисно для регулярних оновлень команди.',
+    bulletMonthly: 'Щомісячні звіти',
+    bulletMonthlyDesc: 'Генеруються у вибраний день місяця. Зазвичай для підсумків керівництва.',
+    bulletMulti: 'Кілька отримувачів',
+    bulletMultiDesc: 'Надсилання на кілька email-адрес для розсилки команді.',
+    bulletToggle: 'Увімкнути/Вимкнути',
+    bulletToggleDesc: 'Вмикайте/вимикайте розклади без видалення. Корисно для сезонних коригувань.',
+    metricPower: 'Вихідна потужність',
+    metricEfficiency: 'Ефективність',
+    metricAvailability: 'Доступність',
+    metricDamage: 'Пошкодження',
+    metricRul: 'RUL',
+    metricVibration: 'Вібрація',
   },
 } as const;
 
@@ -246,9 +296,14 @@ export function ReportScheduling() {
                 <h4 className="font-semibold">{schedule.name}</h4>
                 <p className="text-xs ink-3 mt-1 flex items-center gap-2">
                   <Clock className="w-3 h-3" />
-                  {schedule.frequency.charAt(0).toUpperCase() + schedule.frequency.slice(1)} at {schedule.time}
-                  {schedule.frequency === 'weekly' && ` on ${schedule.dayOfWeek}`}
-                  {schedule.frequency === 'monthly' && ` on day ${schedule.dayOfMonth}`}
+                  {(
+                    schedule.frequency === 'daily' ? L.freqDaily :
+                    schedule.frequency === 'weekly' ? L.freqWeekly :
+                    schedule.frequency === 'monthly' ? L.freqMonthly :
+                    L.freqQuarterly
+                  )} {L.atTime} {schedule.time}
+                  {schedule.frequency === 'weekly' && ` ${L.onWeekday} ${schedule.dayOfWeek}`}
+                  {schedule.frequency === 'monthly' && ` ${L.onDayOfMonth} ${schedule.dayOfMonth}`}
                 </p>
               </div>
               <label className="flex items-center gap-2">
@@ -326,7 +381,7 @@ export function ReportScheduling() {
               <Input
                 value={formData.name || ''}
                 onChange={(e) => handleInputChange('name', e.target.value)}
-                placeholder="e.g., Daily Performance Summary"
+                placeholder={L.namePlaceholder}
                 className="mt-2"
               />
             </div>
@@ -340,10 +395,10 @@ export function ReportScheduling() {
                   onChange={(e) => handleInputChange('frequency', e.target.value)}
                   className="w-full mt-2 px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
+                  <option value="daily">{L.freqDaily}</option>
+                  <option value="weekly">{L.freqWeekly}</option>
+                  <option value="monthly">{L.freqMonthly}</option>
+                  <option value="quarterly">{L.freqQuarterly}</option>
                 </select>
               </div>
 
@@ -367,7 +422,7 @@ export function ReportScheduling() {
                 className="w-full mt-2 px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
               >
                 <option value="pdf">PDF</option>
-                <option value="xlsx">Excel</option>
+                <option value="xlsx">{L.excelFormat}</option>
                 <option value="csv">CSV</option>
               </select>
             </div>
@@ -409,19 +464,29 @@ export function ReportScheduling() {
             <div>
               <label className="text-sm font-medium mb-2 block">{L.metricsInclude}</label>
               <div className="flex flex-wrap gap-2">
-                {metrics.map((metric) => (
-                  <button
-                    key={metric}
-                    onClick={() => handleAddMetric(metric)}
-                    className={`px-3 py-1 rounded text-xs font-medium mono uppercase tracking-widest transition-colors border hairline ${
-                      formData.metrics?.includes(metric)
-                        ? 'glow-amber surface-2 ink-1'
-                        : 'surface-1 ink-2 hover:surface-2'
-                    }`}
-                  >
-                    {metric.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                  </button>
-                ))}
+                {metrics.map((metric) => {
+                  const metricLabel: Record<string, string> = {
+                    power_output: L.metricPower,
+                    efficiency: L.metricEfficiency,
+                    availability: L.metricAvailability,
+                    damage: L.metricDamage,
+                    rul: L.metricRul,
+                    vibration: L.metricVibration,
+                  };
+                  return (
+                    <button
+                      key={metric}
+                      onClick={() => handleAddMetric(metric)}
+                      className={`px-3 py-1 rounded text-xs font-medium mono uppercase tracking-widest transition-colors border hairline ${
+                        formData.metrics?.includes(metric)
+                          ? 'glow-amber surface-2 ink-1'
+                          : 'surface-1 ink-2 hover:surface-2'
+                      }`}
+                    >
+                      {metricLabel[metric] ?? metric}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -470,33 +535,23 @@ export function ReportScheduling() {
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span>
-              <strong>Daily Reports:</strong> Generated and sent every day at the specified time.
-            </span>
+            <span><strong>{L.bulletDaily}:</strong> {L.bulletDailyDesc}</span>
           </li>
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span>
-              <strong>Weekly Reports:</strong> Generated on the selected day each week. Useful for regular team updates.
-            </span>
+            <span><strong>{L.bulletWeekly}:</strong> {L.bulletWeeklyDesc}</span>
           </li>
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span>
-              <strong>Monthly Reports:</strong> Generated on the selected day each month. Commonly used for management summaries.
-            </span>
+            <span><strong>{L.bulletMonthly}:</strong> {L.bulletMonthlyDesc}</span>
           </li>
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span>
-              <strong>Multiple Recipients:</strong> Send to multiple email addresses for team distribution.
-            </span>
+            <span><strong>{L.bulletMulti}:</strong> {L.bulletMultiDesc}</span>
           </li>
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span>
-              <strong>Enable/Disable:</strong> Toggle schedules on/off without deleting them. Useful for seasonal adjustments.
-            </span>
+            <span><strong>{L.bulletToggle}:</strong> {L.bulletToggleDesc}</span>
           </li>
         </ul>
       </Card>

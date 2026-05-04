@@ -121,6 +121,13 @@ const UI_TEXT = {
     titleDelete: 'Delete',
     viewSoon: 'View functionality coming soon',
     storageRetention: 'Storage & Retention',
+    totalStorageUsed: 'Total Storage Used',
+    quotaSuffix: 'of {n} quota ({pct}%)',
+    oldestExport: 'Oldest Export',
+    monthsRetained: '{n} months retained',
+    retentionPolicy: 'Retention Policy',
+    twelveMonths: '12 months',
+    autoCleanupEnabled: 'Auto-cleanup enabled',
   },
   uk: {
     downloadStarted: 'Завантаження звіту розпочато',
@@ -147,6 +154,13 @@ const UI_TEXT = {
     titleDelete: 'Видалити',
     viewSoon: 'Функціональність перегляду скоро буде доступна',
     storageRetention: 'Сховище та зберігання',
+    totalStorageUsed: 'Використано сховища',
+    quotaSuffix: 'із {n} квоти ({pct}%)',
+    oldestExport: 'Найстаріший експорт',
+    monthsRetained: 'збережено {n} міс.',
+    retentionPolicy: 'Політика зберігання',
+    twelveMonths: '12 місяців',
+    autoCleanupEnabled: 'Авто-очищення увімкнено',
   },
 } as const;
 
@@ -354,19 +368,19 @@ export function ExportHistory() {
         <h3 className="font-semibold mb-4">{L.storageRetention}</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
           <div>
-            <p className="font-medium mb-1">Total Storage Used</p>
+            <p className="font-medium mb-1">{L.totalStorageUsed}</p>
             <p className="text-2xl font-bold">47.2 MB</p>
-            <p className="text-xs ink-3 mt-1">of 1 GB quota (4.7%)</p>
+            <p className="text-xs ink-3 mt-1">{L.quotaSuffix.replace('{n}', '1 GB').replace('{pct}', '4.7')}</p>
           </div>
           <div>
-            <p className="font-medium mb-1">Oldest Export</p>
+            <p className="font-medium mb-1">{L.oldestExport}</p>
             <p className="text-base">2024-12-01</p>
-            <p className="text-xs ink-3 mt-1">5 months retained</p>
+            <p className="text-xs ink-3 mt-1">{L.monthsRetained.replace('{n}', '5')}</p>
           </div>
           <div>
-            <p className="font-medium mb-1">Retention Policy</p>
-            <p className="text-base">12 months</p>
-            <p className="text-xs ink-3 mt-1">Auto-cleanup enabled</p>
+            <p className="font-medium mb-1">{L.retentionPolicy}</p>
+            <p className="text-base">{L.twelveMonths}</p>
+            <p className="text-xs ink-3 mt-1">{L.autoCleanupEnabled}</p>
           </div>
         </div>
       </Card>

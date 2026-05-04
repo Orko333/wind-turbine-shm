@@ -5,7 +5,107 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { useToast } from '../../hooks/useToast';
+import { useLocale } from '../../lib/i18n';
 import { Plus, Edit2, Trash2, Lock, Unlock, Mail } from 'lucide-react';
+
+const UM_TEXT = {
+  en: {
+    accounts: 'Accounts',
+    addUser: 'Add User',
+    name: 'Name',
+    email: 'Email',
+    role: 'Role',
+    status: 'Status',
+    lastLogin: 'Last Login',
+    twofa: '2FA',
+    actions: 'Actions',
+    twofaOn: '2FA enabled',
+    twofaOff: '2FA disabled',
+    editUser: 'Edit User',
+    addNewUser: 'Add New User',
+    fullName: 'Full Name',
+    fullNamePh: 'Jane Doe',
+    emailPh: 'jane@example.com',
+    require2fa: 'Require two-factor authentication (2FA)',
+    cancel: 'Cancel',
+    saving: 'Saving…',
+    saveUser: 'Save User',
+    roleAdmin: 'Administrator',
+    roleEngineer: 'Engineer',
+    roleManager: 'Manager',
+    roleOperator: 'Operator',
+    statusActive: 'Active',
+    statusInactive: 'Inactive',
+    statusSuspended: 'Suspended',
+    requiredFields: 'Please fill in all required fields',
+    userUpdated: 'User updated',
+    userCreated: 'User created',
+    userDeleted: 'User deleted',
+    statTotal: 'Total Users',
+    statActiveSuffix: 'active',
+    statAdmins: 'Administrators',
+    stat2fa: '2FA enabled',
+    statShare: '{n}% of users',
+    statInactive: 'Inactive Users',
+    recsTitle: 'User Management Recommendations',
+    rec1: 'Role assignment:',
+    rec1Desc: 'Assign roles per job duties. Review quarterly.',
+    rec2: '2FA security:',
+    rec2Desc: 'Require 2FA for admins and engineers. Recommended for managers.',
+    rec3: 'Inactive cleanup:',
+    rec3Desc: 'Review inactive accounts monthly. Suspend after 90 days.',
+    rec4: 'Audit log:',
+    rec4Desc: 'All user actions are logged. Review access logs for compliance.',
+  },
+  uk: {
+    accounts: 'Облікові записи',
+    addUser: 'Додати користувача',
+    name: "Ім'я",
+    email: 'Email',
+    role: 'Роль',
+    status: 'Статус',
+    lastLogin: 'Останній вхід',
+    twofa: '2FA',
+    actions: 'Дії',
+    twofaOn: '2FA увімкнено',
+    twofaOff: '2FA вимкнено',
+    editUser: 'Редагувати користувача',
+    addNewUser: 'Додати нового користувача',
+    fullName: "Повне ім'я",
+    fullNamePh: 'Іван Іваненко',
+    emailPh: 'ivan@example.com',
+    require2fa: 'Вимагати двофакторну автентифікацію (2FA)',
+    cancel: 'Скасувати',
+    saving: 'Збереження...',
+    saveUser: 'Зберегти користувача',
+    roleAdmin: 'Адміністратор',
+    roleEngineer: 'Інженер',
+    roleManager: 'Менеджер',
+    roleOperator: 'Оператор',
+    statusActive: 'Активний',
+    statusInactive: 'Неактивний',
+    statusSuspended: 'Призупинений',
+    requiredFields: "Будь ласка, заповніть усі обов'язкові поля",
+    userUpdated: 'Користувача оновлено',
+    userCreated: 'Користувача створено',
+    userDeleted: 'Користувача видалено',
+    statTotal: 'Всього користувачів',
+    statActiveSuffix: 'активних',
+    statAdmins: 'Адміністратори',
+    stat2fa: '2FA увімкнено',
+    statShare: '{n}% користувачів',
+    statInactive: 'Неактивні користувачі',
+    recsTitle: 'Рекомендації щодо управління користувачами',
+    rec1: 'Призначення ролей:',
+    rec1Desc: "Призначайте ролі відповідно до посадових обов'язків. Переглядайте щокварталу.",
+    rec2: 'Безпека 2FA:',
+    rec2Desc: 'Вимагайте 2FA для адміністраторів та інженерів. Рекомендовано для менеджерів.',
+    rec3: 'Очищення неактивних:',
+    rec3Desc: 'Переглядайте неактивні облікові записи щомісяця. Призупиняйте після 90 днів.',
+    rec4: 'Журнал аудиту:',
+    rec4Desc: 'Всі дії користувачів реєструються. Перевіряйте журнали доступу для відповідності.',
+  },
+} as const;
 
 interface User {
   id: string;
@@ -20,6 +120,8 @@ interface User {
 
 export function UserManagement() {
   const { success, error: showError } = useToast();
+  const { locale } = useLocale();
+  const L = UM_TEXT[locale];
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -94,7 +196,7 @@ export function UserManagement() {
 
   const handleSaveUser = useCallback(() => {
     if (!formData.name || !formData.email) {
-      showError("Будь ласка, заповніть усі обов'язкові поля");
+      showError(L.requiredFields);
       return;
     }
 
@@ -106,21 +208,21 @@ export function UserManagement() {
     } else {
       setUsers((prev) => [...prev, { ...formData, id: Date.now().toString(), createdAt: new Date().toISOString(), lastLogin: new Date().toISOString() } as User]);
     }
-    success(isEditing ? 'Користувача оновлено' : 'Користувача створено');
+    success(isEditing ? L.userUpdated : L.userCreated);
     setFormData({ name: '', email: '', role: 'operator', status: 'active', mfaEnabled: false });
     setIsAdding(false);
     setIsEditing(null);
     setIsSaving(false);
-  }, [formData, isEditing, success, showError]);
+  }, [formData, isEditing, success, showError, L]);
 
   const handleDeleteUser = useCallback(
     (userId: string) => {
       setIsSaving(true);
       setUsers((prev) => prev.filter((u) => u.id !== userId));
-      success('Користувача видалено');
+      success(L.userDeleted);
       setIsSaving(false);
     },
-    [success]
+    [success, L]
   );
 
   const getRoleBadgeColor = useCallback((role: string) => {
@@ -155,10 +257,10 @@ export function UserManagement() {
       {/* Таблиця користувачів */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold">Облікові записи ({users.length})</h3>
+          <h3 className="text-lg font-semibold">{L.accounts} ({users.length})</h3>
           <Button onClick={() => setIsAdding(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            Додати користувача
+            {L.addUser}
           </Button>
         </div>
 
@@ -166,13 +268,13 @@ export function UserManagement() {
           <table className="w-full text-sm">
             <thead className="surface-2 border-b">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Ім'я</th>
-                <th className="px-4 py-3 text-left font-medium">Email</th>
-                <th className="px-4 py-3 text-left font-medium">Роль</th>
-                <th className="px-4 py-3 text-left font-medium">Статус</th>
-                <th className="px-4 py-3 text-left font-medium">Останній вхід</th>
-                <th className="px-4 py-3 text-left font-medium">2FA</th>
-                <th className="px-4 py-3 text-left font-medium">Дії</th>
+                <th className="px-4 py-3 text-left font-medium">{L.name}</th>
+                <th className="px-4 py-3 text-left font-medium">{L.email}</th>
+                <th className="px-4 py-3 text-left font-medium">{L.role}</th>
+                <th className="px-4 py-3 text-left font-medium">{L.status}</th>
+                <th className="px-4 py-3 text-left font-medium">{L.lastLogin}</th>
+                <th className="px-4 py-3 text-left font-medium">{L.twofa}</th>
+                <th className="px-4 py-3 text-left font-medium">{L.actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -199,7 +301,7 @@ export function UserManagement() {
                     {formatDate(user.lastLogin)} {formatTime(user.lastLogin)}
                   </td>
                   <td className="px-4 py-3">
-                    <div title={user.mfaEnabled ? '2FA увімкнено' : '2FA вимкнено'}>
+                    <div title={user.mfaEnabled ? L.twofaOn : L.twofaOff}>
                       {user.mfaEnabled ? (
                         <Lock className="w-4 h-4 signal-live" />
                       ) : (
@@ -241,26 +343,26 @@ export function UserManagement() {
       {/* Форма додавання/редагування */}
       {isAdding && (
         <Card className="p-6 surface-2 hairline border">
-          <h3 className="font-semibold mb-6">{isEditing ? 'Редагувати користувача' : 'Додати нового користувача'}</h3>
+          <h3 className="font-semibold mb-6">{isEditing ? L.editUser : L.addNewUser}</h3>
 
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium">Повне ім'я</label>
+                <label className="text-sm font-medium">{L.fullName}</label>
                 <Input
                   value={formData.name || ''}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  placeholder="Іван Іваненко"
+                  placeholder={L.fullNamePh}
                   className="mt-2"
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Email</label>
+                <label className="text-sm font-medium">{L.email}</label>
                 <Input
                   type="email"
                   value={formData.email || ''}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  placeholder="ivan@example.com"
+                  placeholder={L.emailPh}
                   className="mt-2"
                 />
               </div>
@@ -268,29 +370,29 @@ export function UserManagement() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium">Роль</label>
+                <label className="text-sm font-medium">{L.role}</label>
                 <select
                   value={formData.role || 'operator'}
                   onChange={(e) => handleInputChange('role', e.target.value)}
                   className="w-full mt-2 px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 >
-                  <option value="admin">Адміністратор</option>
-                  <option value="engineer">Інженер</option>
-                  <option value="manager">Менеджер</option>
-                  <option value="operator">Оператор</option>
+                  <option value="admin">{L.roleAdmin}</option>
+                  <option value="engineer">{L.roleEngineer}</option>
+                  <option value="manager">{L.roleManager}</option>
+                  <option value="operator">{L.roleOperator}</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-sm font-medium">Статус</label>
+                <label className="text-sm font-medium">{L.status}</label>
                 <select
                   value={formData.status || 'active'}
                   onChange={(e) => handleInputChange('status', e.target.value)}
                   className="w-full mt-2 px-3 py-2 surface-2 hairline border rounded-md text-sm ink-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 >
-                  <option value="active">Активний</option>
-                  <option value="inactive">Неактивний</option>
-                  <option value="suspended">Призупинений</option>
+                  <option value="active">{L.statusActive}</option>
+                  <option value="inactive">{L.statusInactive}</option>
+                  <option value="suspended">{L.statusSuspended}</option>
                 </select>
               </div>
             </div>
@@ -302,7 +404,7 @@ export function UserManagement() {
                 onChange={(e) => handleInputChange('mfaEnabled', e.target.checked)}
                 className="w-4 h-4"
               />
-              <span className="text-sm font-medium">Вимагати двофакторну автентифікацію (2FA)</span>
+              <span className="text-sm font-medium">{L.require2fa}</span>
             </label>
 
             <div className="flex gap-2 justify-end pt-4">
@@ -314,10 +416,10 @@ export function UserManagement() {
                   setFormData({ name: '', email: '', role: 'operator', status: 'active', mfaEnabled: false });
                 }}
               >
-                Скасувати
+                {L.cancel}
               </Button>
               <Button onClick={handleSaveUser} disabled={isSaving}>
-                {isSaving ? 'Збереження...' : 'Зберегти користувача'}
+                {isSaving ? L.saving : L.saveUser}
               </Button>
             </div>
           </div>
@@ -327,49 +429,49 @@ export function UserManagement() {
       {/* Статистика користувачів */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="p-4 surface-2 hairline border">
-          <p className="text-xs signal-live font-medium mb-1">Всього користувачів</p>
+          <p className="text-xs signal-live font-medium mb-1">{L.statTotal}</p>
           <p className="text-2xl font-bold ink-1">{users.length}</p>
-          <p className="text-xs ink-2 mt-2">{users.filter((u) => u.status === 'active').length} активних</p>
+          <p className="text-xs ink-2 mt-2">{users.filter((u) => u.status === 'active').length} {L.statActiveSuffix}</p>
         </Card>
 
         <Card className="p-4 surface-2 hairline border">
-          <p className="text-xs signal-crit font-medium mb-1">Адміністратори</p>
+          <p className="text-xs signal-crit font-medium mb-1">{L.statAdmins}</p>
           <p className="text-2xl font-bold signal-crit">{users.filter((u) => u.role === 'admin').length}</p>
         </Card>
 
         <Card className="p-4 surface-2 hairline border">
-          <p className="text-xs signal-live font-medium mb-1">2FA увімкнено</p>
+          <p className="text-xs signal-live font-medium mb-1">{L.stat2fa}</p>
           <p className="text-2xl font-bold signal-live">{users.filter((u) => u.mfaEnabled).length}</p>
           <p className="text-xs signal-live mt-2">
-            {Math.round((users.filter((u) => u.mfaEnabled).length / users.length) * 100)}% користувачів
+            {L.statShare.replace('{n}', String(Math.round((users.filter((u) => u.mfaEnabled).length / users.length) * 100)))}
           </p>
         </Card>
 
         <Card className="p-4 surface-2 hairline border">
-          <p className="text-xs signal-warn font-medium mb-1">Неактивні користувачі</p>
+          <p className="text-xs signal-warn font-medium mb-1">{L.statInactive}</p>
           <p className="text-2xl font-bold signal-warn">{users.filter((u) => u.status === 'inactive').length}</p>
         </Card>
       </div>
 
-      {/* Інформація */}
+      {/* Recommendations */}
       <Card className="p-6 bg-muted/50">
-        <h3 className="font-semibold mb-4">Рекомендації щодо управління користувачами</h3>
+        <h3 className="font-semibold mb-4">{L.recsTitle}</h3>
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span><strong>Призначення ролей:</strong> Призначайте ролі відповідно до посадових обов'язків. Переглядайте щокварталу.</span>
+            <span><strong>{L.rec1}</strong> {L.rec1Desc}</span>
           </li>
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span><strong>Безпека 2FA:</strong> Вимагайте 2FA для адміністраторів та інженерів. Рекомендовано для менеджерів.</span>
+            <span><strong>{L.rec2}</strong> {L.rec2Desc}</span>
           </li>
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span><strong>Очищення неактивних:</strong> Переглядайте неактивні облікові записи щомісяця. Призупиняйте після 90 днів.</span>
+            <span><strong>{L.rec3}</strong> {L.rec3Desc}</span>
           </li>
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span><strong>Журнал аудиту:</strong> Всі дії користувачів реєструються. Перевіряйте журнали доступу для відповідності.</span>
+            <span><strong>{L.rec4}</strong> {L.rec4Desc}</span>
           </li>
         </ul>
       </Card>

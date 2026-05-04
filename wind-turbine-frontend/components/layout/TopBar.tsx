@@ -13,6 +13,7 @@ import { Search, Menu, X, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { CommandPalette } from './CommandPalette';
 
 interface NavItem {
   labelKey: string;   // ключ перекладу для назви пункту
@@ -44,7 +45,19 @@ export function TopBar() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const allItems: NavItem[] = [
     { num: '01', labelKey: 'nav.dashboard',   href: '/dashboard',   permission: canViewDashboard },
@@ -179,6 +192,7 @@ export function TopBar() {
             <LanguageSwitcher />
 
             <button
+              onClick={() => setPaletteOpen(true)}
               className="flex items-center gap-2 h-9 px-3 rounded-md surface-1 hairline border ink-3 hover:ink-1 hover:border-[hsl(var(--ink-4))] transition-colors"
               aria-label={t('common.search')}
             >
@@ -294,6 +308,8 @@ export function TopBar() {
           </nav>
         </div>
       )}
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </>
   );
 }

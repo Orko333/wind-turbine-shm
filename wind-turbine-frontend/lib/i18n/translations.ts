@@ -185,6 +185,15 @@ export const translations = {
     'user_menu.settings':  'Settings',
     'user_menu.sign_out':  'Sign out',
 
+    // ─── Command palette ────────────────────────────────
+    'palette.placeholder':    'Search pages, turbines…',
+    'palette.empty':          'No matches',
+    'palette.pages':          'Pages',
+    'palette.turbines':       'Turbines',
+    'palette.hint_navigate':  'navigate',
+    'palette.hint_open':      'open',
+    'palette.results':        'results',
+
     // ─── Errors / Not Found ─────────────────────────────
     'errors.oops':             'Oops!',
     'errors.something_wrong':  'Something went wrong',
@@ -1154,6 +1163,15 @@ export const translations = {
     'user_menu.profile':   'Профіль',
     'user_menu.settings':  'Налаштування',
     'user_menu.sign_out':  'Вийти',
+
+    // ─── Командна палітра ───────────────────────────────
+    'palette.placeholder':    'Пошук сторінок, турбін…',
+    'palette.empty':          'Нічого не знайдено',
+    'palette.pages':          'Сторінки',
+    'palette.turbines':       'Турбіни',
+    'palette.hint_navigate':  'навігація',
+    'palette.hint_open':      'відкрити',
+    'palette.results':        'результатів',
 
     // ─── Помилки / Не знайдено ──────────────────────────
     'errors.oops':             'Ой!',
