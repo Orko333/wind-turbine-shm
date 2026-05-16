@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from typing import Optional
+from pydantic import BaseModel, Field
 from loguru import logger
 
 from ...database.config import get_db
@@ -19,6 +21,7 @@ from ..schemas import (
     AlertLevel,
 )
 from ..dependencies import get_current_user
+from ...scada.realtime_simulator import realtime_registry
 
 router = APIRouter(prefix="/turbines", tags=["turbines"], redirect_slashes=False)
 
@@ -331,6 +334,166 @@ async def update_turbine(
         rul_days=turbine.rul_days,
         total_records_processed=turbine.total_records_processed,
         last_prediction_at=turbine.last_prediction_at.isoformat() if turbine.last_prediction_at else None,
+        created_at=turbine.created_at.isoformat(),
+        updated_at=turbine.updated_at.isoformat(),
+    )
+
+
+class ScenarioRequest(BaseModel):
+    """Stress-test / aging scenario payload."""
+
+    years_operated: Optional[float] = Field(
+        None, ge=0, le=40,
+        description="Симуляція напрацювання років (з 20-річного проектного ресурсу).",
+    )
+    target_damage: Optional[float] = Field(
+        None, ge=0.0, le=1.0,
+        description="Цільова частка пошкодження Палмгрена-Майнера (0..1).",
+    )
+    alert_level: Optional[AlertLevel] = Field(
+        None, description="Примусово виставити рівень тривоги.",
+    )
+    rul_days: Optional[float] = Field(
+        None, ge=0,
+        description="Залишковий ресурс у днях (за замовч. розраховується з пошкодження).",
+    )
+    damage_rate_multiplier: Optional[float] = Field(
+        None, ge=0.0, le=1000.0,
+        description="Прискорення накопичення пошкодження в реал-тайм симуляції.",
+    )
+    wind_severity: Optional[float] = Field(
+        None, ge=0.1, le=5.0,
+        description="Множник інтенсивності вітру (1.0 = норма).",
+    )
+    fault_mode: Optional[str] = Field(
+        None,
+        description="Тип несправності: gearbox | blade | tower.",
+        pattern="^(gearbox|blade|tower)$",
+    )
+    reset: bool = Field(False, description="Скинути сценарій до нормального стану.")
+
+
+def _damage_to_alert(damage: float) -> AlertLevel:
+    if damage >= 0.75:
+        return AlertLevel.RED
+    if damage >= 0.55:
+        return AlertLevel.ORANGE
+    if damage >= 0.30:
+        return AlertLevel.YELLOW
+    return AlertLevel.GREEN
+
+
+@router.post("/{turbine_id}/scenario", response_model=TurbineDetailResponse)
+async def apply_scenario(
+    turbine_id: str,
+    request: ScenarioRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TurbineDetailResponse:
+    """Apply a stress-test / aging scenario to a turbine.
+
+    Корисно для демонстрації реакції системи: алерти, втомний знос, ML
+    класифікатор, real-time SCADA-сигнали. Стан зберігається у БД та
+    застосовується до симулятора реального часу.
+    """
+    turbine = db.query(Turbine).filter(
+        (Turbine.turbine_id == turbine_id) & (Turbine.owner_id == current_user.id)
+    ).first()
+    if not turbine:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Турбіну '{turbine_id}' не знайдено.",
+        )
+
+    if request.reset:
+        turbine.cumulative_damage = 0.0
+        turbine.damage_fraction = 0.0
+        turbine.alert_level = AlertLevel.GREEN.value
+        turbine.rul_days = 20.0 * 365.0
+        turbine.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(turbine)
+        realtime_registry.reset(turbine_id)
+        _log_audit(
+            db, str(current_user.id), "scenario_reset", "turbine", turbine_id,
+            {"turbine_id": turbine_id},
+        )
+        logger.info(f"Сценарій скинуто для '{turbine_id}'")
+    else:
+        damage: Optional[float] = request.target_damage
+        if damage is None and request.years_operated is not None:
+            damage = min(0.95, float(request.years_operated) / 20.0)
+        if damage is None and request.alert_level is None and not any([
+            request.rul_days is not None,
+            request.damage_rate_multiplier is not None,
+            request.wind_severity is not None,
+            request.fault_mode is not None,
+        ]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Потрібно вказати хоча б один параметр сценарію.",
+            )
+
+        if damage is not None:
+            damage = max(0.0, min(1.0, damage))
+            turbine.cumulative_damage = damage
+            turbine.damage_fraction = damage
+
+        if request.alert_level is not None:
+            turbine.alert_level = request.alert_level.value
+        elif damage is not None:
+            turbine.alert_level = _damage_to_alert(damage).value
+
+        if request.rul_days is not None:
+            turbine.rul_days = float(request.rul_days)
+        elif damage is not None:
+            turbine.rul_days = max(1.0, 20.0 * 365.0 * (1.0 - damage))
+
+        if request.years_operated is not None:
+            turbine.installation_date = datetime.now(timezone.utc) - timedelta(
+                days=float(request.years_operated) * 365.0
+            )
+
+        turbine.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(turbine)
+
+        realtime_registry.prime(
+            turbine_id,
+            cumulative_damage=turbine.cumulative_damage,
+            damage_rate_multiplier=request.damage_rate_multiplier,
+            wind_severity=request.wind_severity,
+            fault_mode=request.fault_mode,
+        )
+
+        _log_audit(
+            db, str(current_user.id), "scenario_apply", "turbine", turbine_id,
+            request.dict(exclude_none=True),
+        )
+        logger.info(
+            f"Сценарій застосовано до '{turbine_id}': "
+            f"damage={turbine.cumulative_damage:.3f}, alert={turbine.alert_level}"
+        )
+
+    return TurbineDetailResponse(
+        id=str(turbine.id),
+        turbine_id=turbine.turbine_id,
+        name=turbine.name,
+        location=turbine.location,
+        manufacturer=turbine.manufacturer,
+        model=turbine.model,
+        rated_power_kw=turbine.rated_power_kw,
+        installation_date=(
+            turbine.installation_date.isoformat() if turbine.installation_date else None
+        ),
+        cumulative_damage=turbine.cumulative_damage,
+        damage_fraction=turbine.damage_fraction,
+        alert_level=AlertLevel(turbine.alert_level),
+        rul_days=turbine.rul_days,
+        total_records_processed=turbine.total_records_processed,
+        last_prediction_at=(
+            turbine.last_prediction_at.isoformat() if turbine.last_prediction_at else None
+        ),
         created_at=turbine.created_at.isoformat(),
         updated_at=turbine.updated_at.isoformat(),
     )

@@ -61,6 +61,45 @@ class TurbineRealtimeState:
         self.cumulative_damage = 0.0
         self.last_emit_at: Optional[datetime] = None
 
+        # Stress-test scenario overrides (None = normal physics)
+        self.damage_rate_multiplier: float = 1.0
+        self.wind_severity: float = 1.0  # >1 = more turbulent / higher mean wind
+        self.fault_mode: Optional[str] = None  # 'gearbox' | 'blade' | 'tower' | None
+
+    # --- scenario controls ---
+
+    def prime(
+        self,
+        cumulative_damage: Optional[float] = None,
+        damage_rate_multiplier: Optional[float] = None,
+        wind_severity: Optional[float] = None,
+        fault_mode: Optional[str] = None,
+    ) -> None:
+        """Override state to simulate an aged or stressed turbine.
+
+        cumulative_damage: 0..1 — Palmgren-Miner damage fraction to start from.
+        damage_rate_multiplier: scales damage accumulation per tick.
+        wind_severity: scales mean wind speed and turbulence (1.0 = normal).
+        fault_mode: optional fault label propagated to clients via extra noise.
+        """
+        if cumulative_damage is not None:
+            self.cumulative_damage = float(max(0.0, min(1.0, cumulative_damage)))
+        if damage_rate_multiplier is not None:
+            self.damage_rate_multiplier = float(max(0.0, damage_rate_multiplier))
+        if wind_severity is not None:
+            self.wind_severity = float(max(0.1, wind_severity))
+            self.v_mean = self.v_mean * self.wind_severity
+        if fault_mode is not None:
+            self.fault_mode = fault_mode or None
+
+    def reset(self) -> None:
+        """Clear scenario overrides and reset damage to zero."""
+        self.cumulative_damage = 0.0
+        self.damage_rate_multiplier = 1.0
+        self.wind_severity = 1.0
+        self.fault_mode = None
+        self.v_mean = float(self.rng.weibull(self.wind.shape_k) * self.wind.scale_c)
+
     # --- physics helpers ---
 
     def _step_wind(self, dt_seconds: float) -> float:
@@ -123,10 +162,10 @@ class TurbineRealtimeState:
         return min(25.0, 25.0 * (v - v_r) / max(v_co - v_r, 1e-3))
 
     def _accumulate_damage(self, M_knm: float, dt_seconds: float) -> None:
-        """Palmgren-Miner increment scaled to dt."""
+        """Palmgren-Miner increment scaled to dt (with scenario multiplier)."""
         # Reference SN curve normalisation — cycles per 10-min equivalent
         # D_per_year ≈ M^3 / 1e12 at typical loads
-        damage_rate = (M_knm / 8000.0) ** 3 * 1e-9
+        damage_rate = (M_knm / 8000.0) ** 3 * 1e-9 * self.damage_rate_multiplier
         self.cumulative_damage = min(1.0, self.cumulative_damage + damage_rate * dt_seconds)
 
     # --- public ---
@@ -157,6 +196,17 @@ class TurbineRealtimeState:
         vibration_mms = (accel_rms / max(omega, 1e-3)) * 1000.0
         # Nacelle temperature (warmer with power)
         nacelle_T = 30.0 + 20.0 * (v / 15.0) + float(self.rng.normal(0.0, 1.0))
+
+        # Fault-mode signal injection (deterministic boost to specific channels)
+        if self.fault_mode == "gearbox":
+            vibration_mms *= 1.0 + 2.5 * (0.5 + self.cumulative_damage)
+            nacelle_T += 12.0 + 8.0 * self.cumulative_damage
+        elif self.fault_mode == "blade":
+            blade_load *= 1.0 + 1.8 * (0.5 + self.cumulative_damage)
+            accel_rms *= 1.0 + 1.2 * self.cumulative_damage
+        elif self.fault_mode == "tower":
+            accel_rms *= 1.0 + 3.0 * self.cumulative_damage
+            M *= 1.0 + 0.8 * self.cumulative_damage
 
         self._accumulate_damage(M, dt)
 
@@ -191,6 +241,27 @@ class RealtimeSimulatorRegistry:
 
     def tick(self, turbine_id: str) -> RealtimeSample:
         return self.get_or_create(turbine_id).tick()
+
+    def prime(
+        self,
+        turbine_id: str,
+        cumulative_damage: Optional[float] = None,
+        damage_rate_multiplier: Optional[float] = None,
+        wind_severity: Optional[float] = None,
+        fault_mode: Optional[str] = None,
+    ) -> TurbineRealtimeState:
+        state = self.get_or_create(turbine_id)
+        state.prime(
+            cumulative_damage=cumulative_damage,
+            damage_rate_multiplier=damage_rate_multiplier,
+            wind_severity=wind_severity,
+            fault_mode=fault_mode,
+        )
+        return state
+
+    def reset(self, turbine_id: str) -> None:
+        if turbine_id in self._states:
+            self._states[turbine_id].reset()
 
 
 # Module-level singleton — shared across the WebSocket and the persistence task
