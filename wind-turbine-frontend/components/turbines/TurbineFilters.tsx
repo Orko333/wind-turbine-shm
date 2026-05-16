@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,12 +25,19 @@ export function TurbineFilters({
   isLoading = false,
 }: TurbineFiltersProps) {
   const t = useT();
+  const RUL_MAX = 25;
   const [rulMin, setRulMin] = useState(
     filters.rulRange?.[0] ?? 0
   );
   const [rulMax, setRulMax] = useState(
-    filters.rulRange?.[1] ?? 10
+    filters.rulRange?.[1] ?? RUL_MAX
   );
+
+  // Sync slider state back when filters reset externally
+  useEffect(() => {
+    setRulMin(filters.rulRange?.[0] ?? 0);
+    setRulMax(filters.rulRange?.[1] ?? RUL_MAX);
+  }, [filters.rulRange]);
 
   // Оновити пошуковий запит
   const handleSearchChange = useCallback(
@@ -100,7 +107,7 @@ export function TurbineFilters({
     filters.searchQuery ||
     filters.turbineStatus ||
     filters.location ||
-    (filters.rulRange && (filters.rulRange[0] > 0 || filters.rulRange[1] < 10));
+    (filters.rulRange && (filters.rulRange[0] > 0 || filters.rulRange[1] < RUL_MAX));
 
   return (
     <div className="surface-1 hairline border rounded-lg p-5">
@@ -183,7 +190,7 @@ export function TurbineFilters({
               <Input
                 type="range"
                 min="0"
-                max="10"
+                max={RUL_MAX}
                 step="0.5"
                 value={rulMin}
                 onChange={(e) => setRulMin(Number(e.target.value))}
@@ -197,7 +204,7 @@ export function TurbineFilters({
               <Input
                 type="range"
                 min="0"
-                max="10"
+                max={RUL_MAX}
                 step="0.5"
                 value={rulMax}
                 onChange={(e) => setRulMax(Number(e.target.value))}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTurbineList } from '@/hooks/useTurbineData';
 import { useRealtime } from '@/hooks/useRealtime';
 import { useFiltersStore } from '@/store/filters';
@@ -28,7 +28,8 @@ export default function TurbinesPage() {
     setTotal,
   } = useFiltersStore();
 
-  // Fetch turbines with current filters
+  // Fetch turbines (server-side pagination only; filtering and sorting are client-side
+  // so the user immediately sees results without re-querying the backend)
   const {
     turbines: pageTurbines,
     total,
@@ -37,8 +38,6 @@ export default function TurbinesPage() {
   } = useTurbineList({
     page: pagination.page,
     pageSize: pagination.pageSize,
-    status: filters.turbineStatus,
-    location: filters.location,
     enabled: true,
   });
 
@@ -59,7 +58,7 @@ export default function TurbinesPage() {
     });
   }, [pageTurbines]);
 
-  // Extract unique locations
+  // Extract unique locations (owner_id field is used to store location label by backend)
   useEffect(() => {
     const uniqueLocations = Array.from(
       new Set(allTurbines.map((t) => t.owner_id).filter(Boolean))
@@ -67,36 +66,69 @@ export default function TurbinesPage() {
     setLocations(uniqueLocations as string[]);
   }, [allTurbines]);
 
+  // Client-side filter + sort: server returns paginated list; we apply remaining filters here
+  const filteredTurbines = useMemo(() => {
+    let list = allTurbines;
+
+    if (filters.searchQuery) {
+      const q = filters.searchQuery.toLowerCase();
+      list = list.filter(
+        (t) =>
+          t.name?.toLowerCase().includes(q) ||
+          t.turbine_id.toLowerCase().includes(q)
+      );
+    }
+
+    if (filters.turbineStatus) {
+      list = list.filter((t) => t.status === filters.turbineStatus);
+    }
+
+    if (filters.location) {
+      list = list.filter((t) => t.owner_id === filters.location);
+    }
+
+    if (filters.rulRange) {
+      const [min, max] = filters.rulRange;
+      list = list.filter((t) => t.rul_years >= min && t.rul_years <= max);
+    }
+
+    const sortBy = (filters.sortBy as keyof Turbine) || 'name';
+    const sortOrder = filters.sortOrder || 'asc';
+    list = [...list].sort((a, b) => {
+      const av = a[sortBy];
+      const bv = b[sortBy];
+      let cmp = 0;
+      if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv;
+      else cmp = String(av ?? '').localeCompare(String(bv ?? ''));
+      return sortOrder === 'asc' ? cmp : -cmp;
+    });
+
+    return list;
+  }, [allTurbines, filters]);
+
   // Оновити pagination total
   useEffect(() => {
     setTotal(total);
   }, [total, setTotal]);
 
-  // Обробити filter changes
+  // Filters are applied client-side, so we just update store state — no need to refetch
   const handleFilterChange = useCallback(
     (newFilters: FilterState) => {
       setFilters(newFilters);
-      setPage(1); // Reset to first page when filters change
-      setAllTurbines([]); // Clear accumulated turbines
     },
-    [setFilters, setPage]
+    [setFilters]
   );
 
-  // Обробити reset filters
   const handleResetFilters = useCallback(() => {
     resetFilters();
-    setAllTurbines([]); // Clear accumulated turbines
   }, [resetFilters]);
 
-  // Обробити sort
   const handleSortChange = useCallback(
     (sortBy: string, sortOrder: 'asc' | 'desc') => {
       updateFilter('sortBy', sortBy);
       updateFilter('sortOrder', sortOrder);
-      setPage(1);
-      setAllTurbines([]); // Clear accumulated turbines
     },
-    [updateFilter, setPage]
+    [updateFilter]
   );
 
 
@@ -203,7 +235,7 @@ export default function TurbinesPage() {
 
           <div className="lg:col-span-9">
             <TurbineTable
-              turbines={allTurbines}
+              turbines={filteredTurbines}
               isLoading={isLoadingTurbines}
               onExport={handleExport}
               sortBy={(filters.sortBy || 'name') as 'status' | 'power_kw' | 'rul_years' | 'wind_speed' | 'rotor_rpm'}

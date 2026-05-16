@@ -1,17 +1,58 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTurbineData } from '@/hooks/useTurbineData';
 import { useRole } from '@/hooks/useRole';
 import { useToast } from '@/hooks/useToast';
-import { postApiWithAuth } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, Lock } from 'lucide-react';
 import { useT } from '@/lib/i18n';
+
+interface SettingsForm {
+  tower_height: number;
+  rotor_diameter: number;
+  rated_power_kw: number;
+  material_young_modulus: number;
+  material_density: number;
+  material_yield_stress: number;
+  air_density: number;
+  cut_in_speed: number;
+  cut_out_speed: number;
+}
+
+const DEFAULT_FORM: SettingsForm = {
+  tower_height: 0,
+  rotor_diameter: 0,
+  rated_power_kw: 0,
+  material_young_modulus: 210000,
+  material_density: 7850,
+  material_yield_stress: 250,
+  air_density: 1.225,
+  cut_in_speed: 3,
+  cut_out_speed: 25,
+};
+
+function settingsKey(id: string) {
+  return `turbine-settings:${id}`;
+}
+
+function loadSettings(id: string): Partial<SettingsForm> | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(settingsKey(id));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSettings(id: string, data: SettingsForm) {
+  localStorage.setItem(settingsKey(id), JSON.stringify(data));
+}
 
 export default function SettingsPage() {
   const t = useT();
@@ -21,28 +62,39 @@ export default function SettingsPage() {
   const { canEditConfig } = useRole();
   const canEdit = canEditConfig();
 
-  const { turbine, isLoading, refetch } = useTurbineData({
+  const { turbine, isLoading } = useTurbineData({
     turbineId,
     enabled: Boolean(turbineId),
   });
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    tower_height: turbine?.tower_height || 0,
-    rotor_diameter: turbine?.rotor_diameter || 0,
-    rated_power_kw: turbine?.rated_power_kw || 0,
-    material_young_modulus: 210000, // Default steel value in MPa
-    material_density: 7850, // kg/m3
-    material_yield_stress: 250, // MPa
-    air_density: 1.225, // kg/m3
-    cut_in_speed: 3, // m/s
-    cut_out_speed: 25, // m/s
-  });
+  const [formData, setFormData] = useState<SettingsForm>(DEFAULT_FORM);
 
-  // Оновити form дані when turbine loads
+  // Build the canonical form values from turbine + stored overrides
+  const buildFromTurbine = useCallback((): SettingsForm => {
+    const stored = loadSettings(turbineId) || {};
+    return {
+      tower_height: stored.tower_height ?? turbine?.tower_height ?? 0,
+      rotor_diameter: stored.rotor_diameter ?? turbine?.rotor_diameter ?? 0,
+      rated_power_kw: stored.rated_power_kw ?? turbine?.rated_power_kw ?? 0,
+      material_young_modulus: stored.material_young_modulus ?? DEFAULT_FORM.material_young_modulus,
+      material_density: stored.material_density ?? DEFAULT_FORM.material_density,
+      material_yield_stress: stored.material_yield_stress ?? DEFAULT_FORM.material_yield_stress,
+      air_density: stored.air_density ?? DEFAULT_FORM.air_density,
+      cut_in_speed: stored.cut_in_speed ?? DEFAULT_FORM.cut_in_speed,
+      cut_out_speed: stored.cut_out_speed ?? DEFAULT_FORM.cut_out_speed,
+    };
+  }, [turbineId, turbine]);
+
+  // Sync form when turbine data arrives or turbineId changes
+  useEffect(() => {
+    if (!turbine || isEditing) return;
+    setFormData(buildFromTurbine());
+  }, [turbine, isEditing, buildFromTurbine]);
+
   const handleInputChange = useCallback(
-    (field: string, value: string | number) => {
+    (field: keyof SettingsForm, value: string | number) => {
       setFormData((prev) => ({
         ...prev,
         [field]: typeof value === 'string' ? parseFloat(value) || 0 : value,
@@ -51,17 +103,16 @@ export default function SettingsPage() {
     []
   );
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(() => {
     if (!canEdit) {
       showError(t('turbines.no_permission_edit'));
       return;
     }
 
+    setIsSaving(true);
     try {
-      setIsSaving(true);
-      await postApiWithAuth(`/turbines/${turbineId}/settings`, formData);
+      saveSettings(turbineId, formData);
       success(t('turbines.settings_saved'));
-      await refetch();
       setIsEditing(false);
     } catch (err) {
       showError(t('turbines.settings_save_failed'));
@@ -69,22 +120,12 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [turbineId, formData, canEdit, success, showError, refetch, t]);
+  }, [turbineId, formData, canEdit, success, showError, t]);
 
   const handleCancel = useCallback(() => {
-    setFormData({
-      tower_height: turbine?.tower_height || 0,
-      rotor_diameter: turbine?.rotor_diameter || 0,
-      rated_power_kw: turbine?.rated_power_kw || 0,
-      material_young_modulus: 210000,
-      material_density: 7850,
-      material_yield_stress: 250,
-      air_density: 1.225,
-      cut_in_speed: 3,
-      cut_out_speed: 25,
-    });
+    setFormData(buildFromTurbine());
     setIsEditing(false);
-  }, [turbine]);
+  }, [buildFromTurbine]);
 
   if (isLoading) {
     return (
@@ -321,27 +362,19 @@ export default function SettingsPage() {
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span>
-              <strong>Параметри турбіни:</strong> Визначають основні фізичні характеристики та експлуатаційні обмеження.
-            </span>
+            <span><strong>{t('turbines.about.params')}</strong> {t('turbines.about.params_desc')}</span>
           </li>
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span>
-              <strong>Властивості матеріалу:</strong> Задають механічні характеристики конструкційного матеріалу вежі та інших елементів.
-            </span>
+            <span><strong>{t('turbines.about.material')}</strong> {t('turbines.about.material_desc')}</span>
           </li>
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span>
-              <strong>Швидкості вмикання/вимкнення:</strong> Швидкость вітру, при якій турбіна починає і зупиняє роботу для максимізації виробництва енергії.
-            </span>
+            <span><strong>{t('turbines.about.speeds')}</strong> {t('turbines.about.speeds_desc')}</span>
           </li>
           <li className="flex gap-2">
             <span className="text-primary">•</span>
-            <span>
-              <strong>Щільність повітря:</strong> Впливає на розрахунок потужності; залежить від висоти та температури. За замовчуванням — рівень моря при 15°C.
-            </span>
+            <span><strong>{t('turbines.about.air')}</strong> {t('turbines.about.air_desc')}</span>
           </li>
         </ul>
       </Card>

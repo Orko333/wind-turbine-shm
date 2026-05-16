@@ -1,6 +1,6 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useTurbineData } from '@/hooks/useTurbineData';
 import { useRole } from '@/hooks/useRole';
@@ -16,8 +16,9 @@ export default function TurbineDetailLayout({
 }) {
   const t = useT();
   const params = useParams();
+  const pathname = usePathname();
   const turbineId = params.id as string;
-  const currentTab = params.tab || 'overview';
+  const currentTab = pathname?.split(`/turbines/${turbineId}/`)[1]?.split('/')[0] || 'overview';
   const { canEditConfig } = useRole();
 
   const TABS = [
@@ -73,9 +74,14 @@ export default function TurbineDetailLayout({
                 className={cn(
                   'px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
                   currentTab === tab.id
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                    ? 'ink-1'
+                    : 'border-transparent ink-3 hover:ink-1'
                 )}
+                style={
+                  currentTab === tab.id
+                    ? { borderBottomColor: 'hsl(var(--primary))' }
+                    : undefined
+                }
               >
                 {tab.label}
               </Link>

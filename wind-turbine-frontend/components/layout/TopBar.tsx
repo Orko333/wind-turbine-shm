@@ -5,11 +5,12 @@
 // індикатор підключення та аватар оператора. Перекладається через useT().
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useRole } from '@/hooks/useRole';
 import { useRealtimeStore } from '@/store/realtime';
-import { Search, Menu, X, ChevronDown } from 'lucide-react';
+import { useAuthStore } from '@/store/auth';
+import { Search, Menu, X, ChevronDown, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 import { LanguageSwitcher } from './LanguageSwitcher';
@@ -43,10 +44,35 @@ export function TopBar() {
     canRunSimulations, canViewAnalytics, canAccessAdmin,
   } = useRole();
 
+  const router = useRouter();
+  const { logout } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const handleLogout = async () => {
+    setUserMenuOpen(false);
+    try {
+      await logout();
+    } catch (e) {
+      console.error('Logout failed', e);
+    }
+    router.push('/login');
+  };
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [userMenuOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -216,21 +242,48 @@ export function TopBar() {
               <span className={cn('mono text-[10px] tracking-widest', connectColor)}>{connectLabel}</span>
             </div>
 
-            <div className="flex items-center gap-2 pl-3 border-l hairline">
-              <div className="text-right leading-tight">
-                <p className="eyebrow ink-4 leading-none">{t('common.operator').slice(0, 2)}</p>
-                <p className="text-xs ink-1 capitalize mt-0.5 leading-none">{role}</p>
-              </div>
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold mono"
-                style={{
-                  background: 'hsl(var(--primary) / 0.15)',
-                  color: 'hsl(var(--primary))',
-                  border: '1px solid hsl(var(--primary) / 0.3)',
-                }}
+            <div ref={userMenuRef} className="relative flex items-center pl-3 border-l hairline">
+              <button
+                onClick={() => setUserMenuOpen((v) => !v)}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
               >
-                {role.slice(0, 2).toUpperCase()}
-              </div>
+                <div className="text-right leading-tight">
+                  <p className="eyebrow ink-4 leading-none">{t('common.operator').slice(0, 2)}</p>
+                  <p className="text-xs ink-1 capitalize mt-0.5 leading-none">{role}</p>
+                </div>
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold mono"
+                  style={{
+                    background: 'hsl(var(--primary) / 0.15)',
+                    color: 'hsl(var(--primary))',
+                    border: '1px solid hsl(var(--primary) / 0.3)',
+                  }}
+                >
+                  {role.slice(0, 2).toUpperCase()}
+                </div>
+              </button>
+              {userMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full mt-2 w-48 surface-1 hairline border rounded-md shadow-xl overflow-hidden z-50"
+                  style={{ boxShadow: '0 16px 40px -12px hsl(var(--primary) / 0.2)' }}
+                >
+                  <div className="px-3 py-2 hairline-b">
+                    <p className="eyebrow ink-4">{t('common.operator')}</p>
+                    <p className="text-sm ink-1 capitalize mt-0.5">{role}</p>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm ink-2 hover:surface-2 hover:ink-1 transition-colors"
+                    role="menuitem"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    {t('user_menu.sign_out')}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -305,6 +358,13 @@ export function TopBar() {
                 <p className="text-sm ink-1 capitalize mt-1">{role}</p>
               </div>
             </div>
+            <button
+              onClick={() => { setMobileOpen(false); handleLogout(); }}
+              className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2.5 surface-2 hairline border rounded text-sm ink-2 hover:ink-1 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              {t('user_menu.sign_out')}
+            </button>
           </nav>
         </div>
       )}

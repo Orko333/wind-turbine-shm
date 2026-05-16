@@ -226,6 +226,7 @@ export default function FatiguePage() {
     to: new Date(),
   });
   const [filterBy, setFilterBy] = useState<'all' | 'critical' | 'warning'>('all');
+  const [refreshTick, setRefreshTick] = useState(0);
 
   // Load дані on mount and date range change
   useEffect(() => {
@@ -270,10 +271,9 @@ export default function FatiguePage() {
         const { goodmanData, rainflowCycles, snCurve, threshold_warnings } = mockFatigueData;
 
         setData({ damageDistribution, topDamagedTurbines, rulDistribution, damageHistory, goodmanData, rainflowCycles, snCurve, threshold_warnings });
-        success('Дані втомленості завантажено');
       } catch (err) {
         console.error('Fatigue page API error:', err);
-        showError('Failed to load fatigue data');
+        showError(t('fatigue.load_failed'));
         setData(mockFatigueData);
       } finally {
         setIsLoading(false);
@@ -281,7 +281,7 @@ export default function FatiguePage() {
     };
 
     loadData();
-  }, [dateRange, success, showError]);
+  }, [dateRange, refreshTick, success, showError, t]);
 
   // Export дані
   const handleExportData = useCallback(
@@ -330,14 +330,11 @@ export default function FatiguePage() {
     [data, dateRange, success, showError]
   );
 
-  // Refresh дані
+  // Refresh — trigger the loader by bumping a tick that's a dep of useEffect
   const handleRefresh = useCallback(() => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      success('Дані оновлено');
-    }, 500);
-  }, [success]);
+    setRefreshTick((n) => n + 1);
+    success(t('fatigue.refreshed'));
+  }, [success, t]);
 
   // Filter warnings
   const filteredWarnings = data.threshold_warnings.filter((w) => {
