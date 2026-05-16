@@ -37,7 +37,7 @@ export default function VisualizationPage() {
     const height = mountElement.clientHeight;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf8fafc);
+    scene.background = new THREE.Color(0x121110); // surface-1
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
@@ -61,12 +61,13 @@ export default function VisualizationPage() {
     directionalLight.castShadow = true;
     scene.add(directionalLight);
 
-    // Tower (cylinder with stress coloring)
+    // Tower (cylinder) - kept simple to avoid BufferGeometry color-attribute
+    // edge cases that previously crashed the page on certain three.js builds.
     const towerGeometry = new THREE.CylinderGeometry(3, 3.5, 40, 32);
     const towerMaterial = new THREE.MeshStandardMaterial({
-      color: 0x64748b,
-      metalness: 0.4,
-      roughness: 0.6,
+      color: 0x52473b, // warm graphite / steel tone
+      metalness: 0.5,
+      roughness: 0.55,
     });
     const tower = new THREE.Mesh(towerGeometry, towerMaterial);
     tower.position.y = 20;
@@ -75,27 +76,12 @@ export default function VisualizationPage() {
     towerRef.current = tower;
     scene.add(tower);
 
-    // Apply stress coloring to tower (gradient from base to top)
-    const positionAttribute = towerGeometry.getAttribute('position');
-    const colors: number[] = [];
-    const color = new THREE.Color();
-    const maxHeight = 40;
-
-    for (let i = 0; i < positionAttribute.count; i++) {
-      const y = (positionAttribute.getY(i) / maxHeight + 0.5) * 255;
-      const stress = Math.min(255, y * 1.5);
-      color.setHSL(0.1 - (stress / 255) * 0.1, 0.8, 0.5);
-      colors.push(color.r, color.g, color.b);
-    }
-    towerGeometry.setAttribute('color', new THREE.BufferAttribute(new Uint8Array(colors), 3, true));
-    towerMaterial.vertexColors = true;
-
     // Nacelle (box on top)
     const nacelleGeometry = new THREE.BoxGeometry(8, 4, 6);
     const nacelleMaterial = new THREE.MeshStandardMaterial({
-      color: 0xfafafa,
-      metalness: 0.3,
-      roughness: 0.7,
+      color: 0x1f1d1c, // surface-2
+      metalness: 0.4,
+      roughness: 0.5,
     });
     const nacelle = new THREE.Mesh(nacelleGeometry, nacelleMaterial);
     nacelle.position.y = 42;
@@ -113,9 +99,9 @@ export default function VisualizationPage() {
     // Hub
     const hubGeometry = new THREE.SphereGeometry(2, 32, 32);
     const hubMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      metalness: 0.6,
-      roughness: 0.4,
+      color: 0xf2a93b, // amber primary
+      metalness: 0.5,
+      roughness: 0.45,
     });
     const hub = new THREE.Mesh(hubGeometry, hubMaterial);
     hub.castShadow = true;
@@ -126,9 +112,9 @@ export default function VisualizationPage() {
     const createBlade = (rotationZ: number) => {
       const bladeGeometry = new THREE.BoxGeometry(2, 25, 1);
       const bladeMaterial = new THREE.MeshStandardMaterial({
-        color: 0xfbbf24,
-        metalness: 0.2,
-        roughness: 0.8,
+        color: 0x3acabf, // signal-live teal
+        metalness: 0.3,
+        roughness: 0.6,
       });
       const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
       blade.position.y = 12.5;
@@ -152,8 +138,8 @@ export default function VisualizationPage() {
     // Ground plane
     const groundGeometry = new THREE.PlaneGeometry(200, 200);
     const groundMaterial = new THREE.MeshStandardMaterial({
-      color: 0xbfdbfe,
-      roughness: 0.8,
+      color: 0x0e0d0c, // background
+      roughness: 0.85,
     });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
@@ -320,7 +306,7 @@ export default function VisualizationPage() {
         </div>
         <div
           ref={mountRef}
-          className="w-full bg-slate-50 rounded-lg overflow-hidden"
+          className="w-full surface-1 hairline border rounded-lg overflow-hidden"
           style={{ minHeight: '600px' }}
         />
       </Card>

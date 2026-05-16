@@ -36,6 +36,40 @@ const DEFAULT_REFETCH_INTERVAL = 30 * 1000; // 30 seconds
 const EMPTY_TURBINES: Turbine[] = [];
 
 /**
+ * Backend `/turbines/{id}` returns a stripped payload missing some fields
+ * the UI expects (status, power_kw, wind_speed, rotor_rpm, rul_years,
+ * damage_rate, tower_height, rotor_diameter). Derive what we can from
+ * what's present and default the rest so .toFixed() never blows up.
+ */
+function normalizeTurbineDetail(raw: Record<string, unknown> & Partial<TurbineDetail>): TurbineDetail {
+  const rulDays = (raw.rul_days as number) ?? 0;
+  const cumulativeDamage = (raw.cumulative_damage as number) ?? 0;
+  const alertLevel = (raw.alert_level as string) ?? 'GREEN';
+  const statusByLevel: Record<string, Turbine['status']> = {
+    GREEN: 'healthy',
+    YELLOW: 'warning',
+    ORANGE: 'warning',
+    RED: 'critical',
+    BLACK: 'offline',
+  };
+
+  return {
+    ...raw,
+    status: (raw.status as Turbine['status']) ?? statusByLevel[alertLevel] ?? 'healthy',
+    power_kw: (raw.power_kw as number) ?? 0,
+    wind_speed: (raw.wind_speed as number) ?? 0,
+    rotor_rpm: (raw.rotor_rpm as number) ?? 0,
+    rul_years: (raw.rul_years as number) ?? rulDays / 365,
+    damage_rate: (raw.damage_rate as number) ?? cumulativeDamage * 100,
+    tower_height: (raw.tower_height as number) ?? 0,
+    rotor_diameter: (raw.rotor_diameter as number) ?? 0,
+    rated_power_kw: (raw.rated_power_kw as number) ?? 0,
+    last_update: (raw.last_update as string) ?? (raw.updated_at as string) ?? '',
+    owner_id: (raw.owner_id as string) ?? '',
+  } as TurbineDetail;
+}
+
+/**
  * useTurbineData Hook - Unified turbine дані fetching (Query + Realtime)
  * @param options Configuration options
  * @returns Turbine дані with real-time updates
@@ -65,10 +99,10 @@ export function useTurbineData(
     queryFn: async () => {
       if (!turbineId) throw new Error("Turbine ID is required");
 
-      const response = await getApiWithAuth<TurbineDetail>(
+      const response = await getApiWithAuth<Record<string, unknown> & TurbineDetail>(
         `/turbines/${turbineId}`
       );
-      return response;
+      return normalizeTurbineDetail(response);
     },
     enabled,
     staleTime,
