@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRole } from '../../hooks/useRole';
 import { useToast } from '../../hooks/useToast';
-import { postApiWithAuth } from '../../lib/api';
+import { loadLocal, saveLocal } from '../../lib/localStore';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { AlertCircle, Lock } from 'lucide-react';
+
+const STORAGE_KEY = 'config:model-settings';
 
 interface ModelConfigData {
   cnn_confidence_threshold: number;
@@ -25,9 +27,7 @@ export function GlobalModelConfig() {
   const { canEditConfig } = useRole();
   const canEdit = canEditConfig();
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState<ModelConfigData>({
+  const defaultData: ModelConfigData = {
     cnn_confidence_threshold: 0.7,
     lstm_confidence_threshold: 0.65,
     anomaly_detection_threshold: 0.75,
@@ -36,9 +36,22 @@ export function GlobalModelConfig() {
     min_samples_for_training: 1000,
     federated_learning_enabled: true,
     data_normalization_method: 'zscore',
-  });
+  };
 
-  const [originalData] = useState<ModelConfigData>(formData);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState<ModelConfigData>(defaultData);
+  const [originalData, setOriginalData] = useState<ModelConfigData>(defaultData);
+
+  // Hydrate from localStorage on mount
+  useEffect(() => {
+    const stored = loadLocal<ModelConfigData>(STORAGE_KEY);
+    if (stored) {
+      setFormData({ ...defaultData, ...stored });
+      setOriginalData({ ...defaultData, ...stored });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleInputChange = useCallback(
     (field: keyof ModelConfigData, value: string | number | boolean) => {
@@ -57,15 +70,16 @@ export function GlobalModelConfig() {
     []
   );
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(() => {
     if (!canEdit) {
       showError('У вас немає прав на редагування конфігурації моделей');
       return;
     }
 
+    setIsSaving(true);
     try {
-      setIsSaving(true);
-      await postApiWithAuth('/config/model-settings', formData);
+      saveLocal(STORAGE_KEY, formData);
+      setOriginalData(formData);
       success('Конфігурацію моделей збережено');
       setIsEditing(false);
     } catch (err) {

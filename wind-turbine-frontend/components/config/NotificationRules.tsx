@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRole } from '../../hooks/useRole';
 import { useToast } from '../../hooks/useToast';
-import { postApiWithAuth } from '../../lib/api';
+import { loadLocal, saveLocal } from '../../lib/localStore';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { AlertCircle, Lock, Plus, Trash2 } from 'lucide-react';
+
+const STORAGE_KEY = 'config:notification-rules';
 
 interface NotificationRule {
   id: string;
@@ -25,9 +27,7 @@ export function NotificationRules() {
   const { canEditConfig } = useRole();
   const canEdit = canEditConfig();
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [rules, setRules] = useState<NotificationRule[]>([
+  const defaultRules: NotificationRule[] = [
     {
       id: '1',
       name: 'Critical Power Loss',
@@ -58,9 +58,20 @@ export function NotificationRules() {
       notification_channels: ['email', 'slack'],
       enabled: true,
     },
-  ]);
+  ];
 
-  const [originalRules] = useState<NotificationRule[]>(rules);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [rules, setRules] = useState<NotificationRule[]>(defaultRules);
+  const [originalRules, setOriginalRules] = useState<NotificationRule[]>(defaultRules);
+
+  useEffect(() => {
+    const stored = loadLocal<NotificationRule[]>(STORAGE_KEY);
+    if (stored && Array.isArray(stored)) {
+      setRules(stored);
+      setOriginalRules(stored);
+    }
+  }, []);
 
   const handleAddRule = useCallback(() => {
     const newRule: NotificationRule = {
@@ -114,15 +125,16 @@ export function NotificationRules() {
     []
   );
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(() => {
     if (!canEdit) {
       showError('У вас немає прав на редагування правил сповіщень');
       return;
     }
 
+    setIsSaving(true);
     try {
-      setIsSaving(true);
-      await postApiWithAuth('/config/notification-rules', { rules });
+      saveLocal(STORAGE_KEY, rules);
+      setOriginalRules(rules);
       success('Правила сповіщень збережено');
       setIsEditing(false);
     } catch (err) {

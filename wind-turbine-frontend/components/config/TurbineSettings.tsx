@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRole } from '../../hooks/useRole';
 import { useToast } from '../../hooks/useToast';
-import { postApiWithAuth } from '../../lib/api';
+import { loadLocal, saveLocal } from '../../lib/localStore';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { AlertCircle, Lock } from 'lucide-react';
+
+const STORAGE_KEY = 'config:turbine-settings';
 
 interface TurbineSettingsData {
   air_density: number;
@@ -22,17 +24,27 @@ export function TurbineSettings() {
   const { canEditConfig } = useRole();
   const canEdit = canEditConfig();
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState<TurbineSettingsData>({
+  const defaultData: TurbineSettingsData = {
     air_density: 1.225,
     gravity: 9.81,
     safety_factor: 1.35,
     design_life_years: 20,
     inspection_interval_months: 12,
-  });
+  };
 
-  const [originalData] = useState<TurbineSettingsData>(formData);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState<TurbineSettingsData>(defaultData);
+  const [originalData, setOriginalData] = useState<TurbineSettingsData>(defaultData);
+
+  useEffect(() => {
+    const stored = loadLocal<TurbineSettingsData>(STORAGE_KEY);
+    if (stored) {
+      setFormData({ ...defaultData, ...stored });
+      setOriginalData({ ...defaultData, ...stored });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleInputChange = useCallback(
     (field: keyof TurbineSettingsData, value: string | number) => {
@@ -44,15 +56,16 @@ export function TurbineSettings() {
     []
   );
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(() => {
     if (!canEdit) {
       showError('У вас немає прав на редагування налаштувань турбін');
       return;
     }
 
+    setIsSaving(true);
     try {
-      setIsSaving(true);
-      await postApiWithAuth('/config/turbine-settings', formData);
+      saveLocal(STORAGE_KEY, formData);
+      setOriginalData(formData);
       success('Налаштування турбін збережено');
       setIsEditing(false);
     } catch (err) {

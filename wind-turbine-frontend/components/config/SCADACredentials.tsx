@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRole } from '../../hooks/useRole';
 import { useToast } from '../../hooks/useToast';
-import { postApiWithAuth } from '../../lib/api';
+import { loadLocal, saveLocal } from '../../lib/localStore';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { AlertCircle, Lock, Eye, EyeOff } from 'lucide-react';
 import { useLocale } from '../../lib/i18n';
+
+const STORAGE_KEY = 'config:scada-credentials';
 
 interface CredentialsData {
   scada_api_url: string;
@@ -33,7 +35,7 @@ export function SCADACredentials() {
   const [isSaving, setIsSaving] = useState(false);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
 
-  const [formData, setFormData] = useState<CredentialsData>({
+  const defaultData: CredentialsData = {
     scada_api_url: 'https://scada.example.com/api',
     scada_api_key: '',
     scada_api_secret: '',
@@ -44,9 +46,19 @@ export function SCADACredentials() {
     historian_endpoint: 'https://historian.example.com',
     historian_database: 'wind_turbines',
     data_fetch_interval_seconds: 60,
-  });
+  };
 
-  const [originalData] = useState<CredentialsData>(formData);
+  const [formData, setFormData] = useState<CredentialsData>(defaultData);
+  const [originalData, setOriginalData] = useState<CredentialsData>(defaultData);
+
+  useEffect(() => {
+    const stored = loadLocal<CredentialsData>(STORAGE_KEY);
+    if (stored) {
+      setFormData({ ...defaultData, ...stored });
+      setOriginalData({ ...defaultData, ...stored });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleInputChange = useCallback(
     (field: keyof CredentialsData, value: string | number) => {
@@ -65,15 +77,16 @@ export function SCADACredentials() {
     }));
   }, []);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(() => {
     if (!canEdit) {
       showError(locale === 'uk' ? 'У вас немає прав для редагування облікових даних SCADA' : 'You do not have permission to edit SCADA credentials');
       return;
     }
 
+    setIsSaving(true);
     try {
-      setIsSaving(true);
-      await postApiWithAuth('/config/scada-credentials', formData);
+      saveLocal(STORAGE_KEY, formData);
+      setOriginalData(formData);
       success(locale === 'uk' ? 'Облікові дані SCADA успішно збережено' : 'SCADA credentials saved successfully');
       setIsEditing(false);
     } catch (err) {
