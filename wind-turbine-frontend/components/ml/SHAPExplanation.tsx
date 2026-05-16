@@ -26,6 +26,7 @@ interface BackendSCDAResult {
 
 interface SHAPExplanationProps {
   modelType?: 'cnn' | 'lstm';
+  turbineId?: string;
 }
 
 interface FeatureImportance {
@@ -41,7 +42,7 @@ interface SHAPData {
   features: FeatureImportance[];
 }
 
-export function SHAPExplanation({ modelType = 'cnn' }: SHAPExplanationProps) {
+export function SHAPExplanation({ modelType = 'cnn', turbineId }: SHAPExplanationProps) {
   const [data, setData] = useState<SHAPData | null>(null);
   const [activeTab, setActiveTab] = useState<'bar' | 'waterfall'>('bar');
   const [isLoading, setIsLoading] = useState(true);
@@ -69,7 +70,7 @@ export function SHAPExplanation({ modelType = 'cnn' }: SHAPExplanationProps) {
       try {
         setIsLoading(true);
         const backend = await postApiWithAuth<BackendSCDAResult>('/predict/scada?explain=true', {
-          turbine_id: 'WT-001',
+          turbine_id: turbineId || 'ADMI-001',
           timestamp: new Date().toISOString(),
           wind_speed_mean: 10.5,
           wind_speed_std: 1.2,

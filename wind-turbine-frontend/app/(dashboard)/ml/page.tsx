@@ -9,11 +9,17 @@ import { CNNClassification } from '@/components/ml/CNNClassification';
 import { AnomalyDetection } from '@/components/ml/AnomalyDetection';
 import { SHAPExplanation } from '@/components/ml/SHAPExplanation';
 import { FederatedStatus } from '@/components/ml/FederatedStatus';
+import { useTurbineList } from '@/hooks/useTurbineData';
 import { useT } from '@/lib/i18n';
 
 export default function MLPage() {
   const t = useT();
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Pull the first turbine of the user as the demo target for ML inference,
+  // because turbine_ids are user-prefixed (e.g. ADMI-001), not "WT-001".
+  const { turbines } = useTurbineList({ page: 1, pageSize: 1, enabled: true });
+  const demoTurbineId = turbines?.[0]?.turbine_id;
 
   const handleRefresh = () => setRefreshKey((k) => k + 1);
 
@@ -47,15 +53,15 @@ export default function MLPage() {
 
         {/* LSTM + CNN row */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <LSTMPrediction key={`lstm-${refreshKey}`} />
-          <CNNClassification key={`cnn-${refreshKey}`} />
+          <LSTMPrediction key={`lstm-${refreshKey}-${demoTurbineId}`} turbineId={demoTurbineId} />
+          <CNNClassification key={`cnn-${refreshKey}-${demoTurbineId}`} turbineId={demoTurbineId} />
         </div>
 
         {/* Anomaly Detection */}
-        <AnomalyDetection key={`anomaly-${refreshKey}`} />
+        <AnomalyDetection key={`anomaly-${refreshKey}-${demoTurbineId}`} turbineId={demoTurbineId} />
 
         {/* SHAP Explanation */}
-        <SHAPExplanation key={`shap-${refreshKey}`} />
+        <SHAPExplanation key={`shap-${refreshKey}-${demoTurbineId}`} turbineId={demoTurbineId} />
 
         {/* Federated Learning Status */}
         <FederatedStatus key={`federated-${refreshKey}`} />

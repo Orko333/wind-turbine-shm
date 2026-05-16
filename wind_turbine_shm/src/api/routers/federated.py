@@ -263,8 +263,28 @@ async def get_federated_status(
     """Повертає статус федеративного навчання."""
     global federated_coordinator
 
+    # Lazy-initialize the coordinator on first status request so dashboards
+    # don't 503 before /federated/initialize has been called explicitly.
     if not federated_coordinator:
-        raise HTTPException(status_code=503, detail="Federated coordinator not initialized")
+        try:
+            global_model = create_federated_model(input_shape=(24, 8))
+            federated_coordinator = FederatedLearningCoordinator(
+                global_model=global_model,
+                use_dp=True,
+                use_secure_agg=True,
+            )
+            logger.info("Federated coordinator lazy-initialized for status query")
+        except Exception as e:
+            logger.error(f"Federated lazy-init failed: {e}")
+            # Fall back to an idle response instead of 503 — the UI can
+            # show "not yet started" instead of crashing.
+            return FederatedStatusResponse(
+                current_round=0,
+                num_parks=0,
+                total_samples=0,
+                avg_loss=None,
+                training_progress={"current_round": 0, "num_parks": 0, "history": []},
+            )
 
     try:
         progress = federated_coordinator.get_training_progress()

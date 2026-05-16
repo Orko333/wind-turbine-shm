@@ -53,7 +53,7 @@ export function CNNClassification({ turbineId }: CNNClassificationProps) {
         );
         try {
           const backend = await postApiWithAuth<BackendCNNResult>('/cnn/detect-damage', {
-            turbine_id: turbineId || 'WT-001',
+            turbine_id: turbineId || 'ADMI-001',
             signal_data: signal,
             fs: 100.0,
             signal_duration_sec: 10.0,

@@ -68,7 +68,7 @@ export function LSTMPrediction({ turbineId }: LSTMPredictionProps) {
         }));
 
         const backend = await postApiWithAuth<BackendLSTMResult>('/predict/lstm-rul', {
-          turbine_id: turbineId || 'WT-001',
+          turbine_id: turbineId || 'ADMI-001',
           timestamp: new Date().toISOString(),
           sequence,
         });

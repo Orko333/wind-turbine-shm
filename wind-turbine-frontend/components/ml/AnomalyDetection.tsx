@@ -61,7 +61,7 @@ export function AnomalyDetection({ turbineId }: AnomalyDetectionProps) {
         const accel  = Array.from({ length: n }, (_, i) => Math.sin(2 * Math.PI * 10 * i / 100) * 0.5 + (Math.random() - 0.5) * 0.1);
 
         const backend = await postApiWithAuth<BackendAnomalyResult>('/predict/hf-signal', {
-          turbine_id: turbineId || 'WT-001',
+          turbine_id: turbineId || 'ADMI-001',
           timestamp: new Date().toISOString(),
           sampling_rate_hz: 100.0,
           strain_microstrain: strain,

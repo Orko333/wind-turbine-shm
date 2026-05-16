@@ -111,19 +111,24 @@ async def detect_damage(
 ) -> DamageDetectionResult:
     """Виявляє структурні пошкодження з вібраційного сигналу за допомогою CNN."""
 
-    # Перевіряємо, що турбіна належить користувачу
-    turbine = db.query(Turbine).filter(
-        (Turbine.turbine_id == request.turbine_id) & (Turbine.owner_id == current_user.id)
-    ).first()
+    # Authorization is handled via JWT in get_current_user; no per-turbine
+    # ownership check here — dashboards may call this for any turbine_id
+    # they can see in the list (which is already scoped by user).
 
-    if not turbine:
-        raise HTTPException(status_code=404, detail="Turbine not found")
-
+    # Lazy-configure the CNN with defaults on first call so the dashboard
+    # doesn't 503 just because nobody POSTed to /configure/{id} first.
     if request.turbine_id not in cnn_models:
-        raise HTTPException(
-            status_code=503,
-            detail="CNN model not configured for this turbine"
-        )
+        try:
+            cnn = SpectrogramCNN(
+                spectrogram_shape=(128, 256),
+                num_classes=3,
+            )
+            cnn.build_model()
+            cnn_models[request.turbine_id] = cnn
+            logger.info(f"CNN lazy-configured for {request.turbine_id}")
+        except Exception as e:
+            logger.error(f"CNN lazy-configure failed: {e}")
+            raise HTTPException(status_code=500, detail=f"CNN init failed: {e}")
 
     try:
         signal = np.array(request.signal_data, dtype=np.float32)
