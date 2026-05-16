@@ -19,7 +19,9 @@ export default function DashboardPage() {
   const [allTurbines, setAllTurbines] = useState<Turbine[]>([]);
 
   const { turbines: pageTurbines, total, isLoading: isLoadingTurbines } = useTurbineList({ page, pageSize: 10 });
-  const { data: alerts = [], isLoading: isLoadingAlerts } = useTurbineAlerts({ enabled: true });
+  const { data: rawAlerts = [], isLoading: isLoadingAlerts } = useTurbineAlerts({ enabled: true });
+  const [ackedIds, setAckedIds] = useState<Set<string>>(new Set());
+  const alerts = useMemo(() => rawAlerts.filter((a) => !ackedIds.has(a.id)), [rawAlerts, ackedIds]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const turbineIds = useMemo(() => allTurbines.map((t) => t.turbine_id), [allTurbines]);
@@ -51,15 +53,23 @@ export default function DashboardPage() {
 
   const handleAck = useCallback(
     async (alertId: string) => {
+      // Optimistically remove the alert from the feed so the user sees
+      // an immediate response; revert if the backend rejects it.
+      setAckedIds((prev) => new Set(prev).add(alertId));
       try {
         await postApiWithAuth(`/alerts/${alertId}/acknowledge`, {});
-        success('Сповіщення підтверджено');
+        success(t('dashboard.alert_acked'));
       } catch (err) {
-        showError('Failed to acknowledge alert');
+        setAckedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(alertId);
+          return next;
+        });
+        showError(t('dashboard.alert_ack_failed'));
         console.error(err);
       }
     },
-    [success, showError]
+    [success, showError, t]
   );
 
   const hasMore = allTurbines.length < total;

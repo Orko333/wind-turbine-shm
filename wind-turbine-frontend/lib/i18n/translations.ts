@@ -110,6 +110,8 @@ export const translations = {
     'status.inactive': 'Inactive',
 
     // ─── Dashboard page ─────────────────────────────────
+    'dashboard.alert_acked':       'Alert acknowledged',
+    'dashboard.alert_ack_failed':  'Failed to acknowledge alert',
     'dashboard.eyebrow':     'Live · Operations',
     'dashboard.hero.fleet':  'Fleet running at',
     'dashboard.hero.capacity': 'capacity.',
@@ -1099,6 +1101,8 @@ export const translations = {
     'status.inactive': 'Неактивний',
 
     // ─── Сторінка Панель ────────────────────────────────
+    'dashboard.alert_acked':       'Сповіщення підтверджено',
+    'dashboard.alert_ack_failed':  'Не вдалося підтвердити сповіщення',
     'dashboard.eyebrow':     'Наживо · Операції',
     'dashboard.hero.fleet':  'Парк працює на',
     'dashboard.hero.capacity': 'потужності.',
