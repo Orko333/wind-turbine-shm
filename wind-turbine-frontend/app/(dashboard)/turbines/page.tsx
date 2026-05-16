@@ -58,10 +58,13 @@ export default function TurbinesPage() {
     });
   }, [pageTurbines]);
 
-  // Extract unique locations (owner_id field is used to store location label by backend)
+  // Extract unique locations from the `location` field (backend now sends it explicitly;
+  // fall back to owner_id for older payloads).
   useEffect(() => {
+    const pickLocation = (t: Turbine) =>
+      (t as Turbine & { location?: string }).location || t.owner_id || '';
     const uniqueLocations = Array.from(
-      new Set(allTurbines.map((t) => t.owner_id).filter(Boolean))
+      new Set(allTurbines.map(pickLocation).filter(Boolean))
     );
     setLocations(uniqueLocations as string[]);
   }, [allTurbines]);
@@ -84,7 +87,10 @@ export default function TurbinesPage() {
     }
 
     if (filters.location) {
-      list = list.filter((t) => t.owner_id === filters.location);
+      list = list.filter((t) => {
+        const loc = (t as Turbine & { location?: string }).location || t.owner_id;
+        return loc === filters.location;
+      });
     }
 
     if (filters.rulRange) {

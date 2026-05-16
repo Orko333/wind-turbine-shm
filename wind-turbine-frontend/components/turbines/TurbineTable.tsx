@@ -269,7 +269,7 @@ export function TurbineTable({
                           </Badge>
                         </td>
                         <td className="px-6 py-4 text-muted-foreground">
-                          {turbine.owner_id || '-'}
+                          {((turbine as Turbine & { location?: string }).location) || turbine.owner_id || '-'}
                         </td>
                         <td className="px-6 py-4 text-right font-medium">
                           {Math.round(power)} {t('common.kw')}
