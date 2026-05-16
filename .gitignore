@@ -55,3 +55,4 @@ wind_turbine_shm/data/
 wind_turbine_shm/models/*.pkl
 wind_turbine_shm/models/*.joblib
 wind_turbine_shm/notebooks/.ipynb_checkpoints/
+.vercel

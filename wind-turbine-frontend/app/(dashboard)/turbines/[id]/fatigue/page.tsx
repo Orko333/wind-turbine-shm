@@ -157,7 +157,7 @@ export default function FatiguePage() {
           </LineChart>
         </ResponsiveContainer>
         <p className="text-sm text-muted-foreground mt-4">
-          {t('turbines.current_rul_desc', { v: turbine.rul_years.toFixed(2) })}
+          {t('turbines.current_rul_desc', { v: (turbine.rul_years ?? 0).toFixed(2) })}
         </p>
       </Card>
 
@@ -220,12 +220,12 @@ export default function FatiguePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <p className="text-sm text-muted-foreground">{t('turbines.current_damage_rate')}</p>
-            <p className="text-2xl font-bold mt-2">{turbine.damage_rate.toFixed(2)}%</p>
+            <p className="text-2xl font-bold mt-2">{(turbine.damage_rate ?? 0).toFixed(2)}%</p>
             <p className="text-xs text-muted-foreground mt-1">{t('turbines.per_year')}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">{t('turbines.estimated_rul')}</p>
-            <p className="text-2xl font-bold mt-2">{turbine.rul_years.toFixed(1)}</p>
+            <p className="text-2xl font-bold mt-2">{(turbine.rul_years ?? 0).toFixed(1)}</p>
             <p className="text-xs text-muted-foreground mt-1">{t('turbines.years_short')}</p>
           </div>
           <div>
