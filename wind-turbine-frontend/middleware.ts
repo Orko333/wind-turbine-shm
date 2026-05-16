@@ -43,9 +43,21 @@ const ROUTE_CONFIG: Record<string, string[]> = {
   "/simulations/create": ["engineer", "manager", "admin"],
   "/analysis": ["engineer", "manager", "admin"],
 
-  // Operator-specific routes
-  "/turbines": ["operator", "manager", "admin"],
-  "/alerts": ["operator", "manager", "admin"],
+  // Turbine fleet / alerts — every authenticated role can read these
+  "/turbines": ["engineer", "operator", "manager", "admin"],
+  "/alerts": ["engineer", "operator", "manager", "admin"],
+
+  // Other operations pages — readable by all roles too
+  "/physics": ["engineer", "operator", "manager", "admin"],
+  "/fatigue": ["engineer", "operator", "manager", "admin"],
+  "/ml": ["engineer", "operator", "manager", "admin"],
+  "/monitoring": ["engineer", "operator", "manager", "admin"],
+  "/scada": ["engineer", "operator", "manager", "admin"],
+  "/reports": ["engineer", "operator", "manager", "admin"],
+
+  // Manager / admin only
+  "/config": ["manager", "admin"],
+  "/admin": ["admin"],
 
   // Manager and Admin routes
   "/settings": ["manager", "admin"],
