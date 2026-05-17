@@ -32,78 +32,6 @@ interface BackendAuditLog {
   details: string | null;
 }
 
-const sampleLogs: AuditLog[] = [
-  {
-    id: '1',
-    timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-    userId: '2',
-    userName: 'engineer@example.com',
-    action: 'EDIT',
-    resource: 'Налаштування турбіни',
-    resourceId: 'TURB-001',
-    status: 'success',
-    ipAddress: '192.168.1.100',
-    details: 'Діаметр ротора змінено з 90м на 92м',
-  },
-  {
-    id: '2',
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    userId: '3',
-    userName: 'manager@example.com',
-    action: 'CREATE',
-    resource: 'Розклад звітів',
-    resourceId: 'SCHED-042',
-    status: 'success',
-    ipAddress: '10.0.0.50',
-    details: 'Створено щоденний звіт продуктивності о 06:00',
-  },
-  {
-    id: '3',
-    timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    userId: '4',
-    userName: 'operator@example.com',
-    action: 'LOGIN',
-    resource: 'Автентифікація',
-    status: 'success',
-    ipAddress: '172.16.0.25',
-    details: 'Користувач успішно увійшов у систему',
-  },
-  {
-    id: '4',
-    timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-    userId: '1',
-    userName: 'admin@example.com',
-    action: 'DELETE',
-    resource: 'Обліковий запис',
-    resourceId: 'USER-099',
-    status: 'success',
-    ipAddress: '192.168.1.50',
-    details: 'Видалено неактивний обліковий запис',
-  },
-  {
-    id: '5',
-    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    userId: '2',
-    userName: 'engineer@example.com',
-    action: 'VIEW',
-    resource: 'Конфігурація системи',
-    status: 'success',
-    ipAddress: '192.168.1.100',
-    details: 'Переглянуто сторінку конфігурації системи',
-  },
-  {
-    id: '6',
-    timestamp: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(),
-    userId: '999',
-    userName: 'unknown@example.com',
-    action: 'LOGIN',
-    resource: 'Автентифікація',
-    status: 'failure',
-    ipAddress: '203.0.113.42',
-    details: 'Невдала спроба входу — невірні дані автентифікації',
-  },
-];
-
 export function AuditLogs() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -113,13 +41,6 @@ export function AuditLogs() {
   useEffect(() => {
     getApiWithAuth<BackendAuditLog[]>('/admin/audit-logs?limit=200')
       .then((rows) => {
-        if (!rows.length) {
-          // No records yet — keep the sample fixtures visible so the table
-          // isn't empty on first visit. Real records replace them as they
-          // accrue from create/edit/delete actions.
-          setLogs(sampleLogs);
-          return;
-        }
         setLogs(
           rows.map((r) => ({
             id: String(r.id),
@@ -136,7 +57,7 @@ export function AuditLogs() {
       })
       .catch((err) => {
         console.error('Load audit logs failed:', err);
-        setLogs(sampleLogs);
+        setLogs([]);
       });
   }, []);
 

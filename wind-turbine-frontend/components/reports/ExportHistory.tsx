@@ -36,79 +36,6 @@ interface ExportRecord {
   status: 'completed' | 'pending' | 'failed';
 }
 
-const sampleExports: ExportRecord[] = [
-  {
-    id: '1',
-    reportTitle: 'Q1 2025 Wind Farm Performance',
-    exportedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    exportedBy: 'admin@example.com',
-    format: 'pdf',
-    fileSize: '12.5 MB',
-    turbineCount: 15,
-    dateRange: {
-      start: '2025-01-01',
-      end: '2025-03-31',
-    },
-    status: 'completed',
-  },
-  {
-    id: '2',
-    reportTitle: 'Monthly Efficiency Report - March',
-    exportedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    exportedBy: 'engineer@example.com',
-    format: 'xlsx',
-    fileSize: '3.2 MB',
-    turbineCount: 15,
-    dateRange: {
-      start: '2025-03-01',
-      end: '2025-03-31',
-    },
-    status: 'completed',
-  },
-  {
-    id: '3',
-    reportTitle: 'Maintenance Plan Analysis',
-    exportedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-    exportedBy: 'manager@example.com',
-    format: 'pdf',
-    fileSize: '8.7 MB',
-    turbineCount: 15,
-    dateRange: {
-      start: '2025-01-01',
-      end: '2025-03-31',
-    },
-    status: 'completed',
-  },
-  {
-    id: '4',
-    reportTitle: 'RUL Forecast Dashboard',
-    exportedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    exportedBy: 'admin@example.com',
-    format: 'csv',
-    fileSize: '2.1 MB',
-    turbineCount: 15,
-    dateRange: {
-      start: '2025-03-15',
-      end: '2025-05-02',
-    },
-    status: 'pending',
-  },
-  {
-    id: '5',
-    reportTitle: 'Damage Accumulation Trends',
-    exportedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-    exportedBy: 'engineer@example.com',
-    format: 'json',
-    fileSize: '1.8 MB',
-    turbineCount: 15,
-    dateRange: {
-      start: '2024-12-01',
-      end: '2025-03-31',
-    },
-    status: 'completed',
-  },
-];
-
 const UI_TEXT = {
   en: {
     downloadStarted: 'Report download started',
@@ -203,13 +130,11 @@ export function ExportHistory() {
   useEffect(() => {
     getApiWithAuth<BackendExport[]>('/reports/exports')
       .then((rows) => {
-        // Show backend rows; if user has none yet, surface the sample
-        // fixtures so the table isn't empty on first visit.
-        setExports(rows.length ? rows.map(backendToExport) : sampleExports);
+        setExports(rows.map(backendToExport));
       })
       .catch((err) => {
         console.error('Load exports failed:', err);
-        setExports(sampleExports);
+        setExports([]);
       });
   }, []);
 
@@ -233,11 +158,7 @@ export function ExportHistory() {
   const handleDelete = useCallback(async (exportId: string) => {
     setIsDeleting(true);
     try {
-      // Sample rows aren't on backend; just drop them locally
-      const isSample = sampleExports.some((s) => s.id === exportId);
-      if (!isSample) {
-        await deleteApiWithAuth(`/reports/exports/${exportId}`);
-      }
+      await deleteApiWithAuth(`/reports/exports/${exportId}`);
       setExports((prev) => prev.filter((e) => e.id !== exportId));
       success(L.deleteSuccess);
     } catch (err) {
@@ -252,8 +173,7 @@ export function ExportHistory() {
     setIsDeleting(true);
     try {
       const toDelete = Array.from(selectedExports);
-      const realIds = toDelete.filter((id) => !sampleExports.some((s) => s.id === id));
-      await Promise.all(realIds.map((id) => deleteApiWithAuth(`/reports/exports/${id}`)));
+      await Promise.all(toDelete.map((id) => deleteApiWithAuth(`/reports/exports/${id}`)));
       setExports((prev) => prev.filter((e) => !selectedExports.has(e.id)));
       setSelectedExports(new Set());
       success(L.bulkDeleteSuccess);

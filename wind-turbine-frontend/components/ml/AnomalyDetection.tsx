@@ -94,28 +94,8 @@ export function AnomalyDetection({ turbineId }: AnomalyDetectionProps) {
         setError(null);
       } catch (err) {
         console.error('AnomalyDetection API error:', err);
-        const mockData: AnomalyData = {
-          current_threshold: 0.3,
-          current_error: 0.18,
-          is_current_anomaly: false,
-          time_series: [
-            { timestamp: 'Day 1', reconstruction_error: 0.12, is_anomaly: false },
-            { timestamp: 'Day 2', reconstruction_error: 0.15, is_anomaly: false },
-            { timestamp: 'Day 3', reconstruction_error: 0.14, is_anomaly: false },
-            { timestamp: 'Day 4', reconstruction_error: 0.25, is_anomaly: false },
-            { timestamp: 'Day 5', reconstruction_error: 0.35, is_anomaly: true },
-            { timestamp: 'Day 6', reconstruction_error: 0.42, is_anomaly: true },
-            { timestamp: 'Day 7', reconstruction_error: 0.28, is_anomaly: false },
-            { timestamp: 'Day 8', reconstruction_error: 0.16, is_anomaly: false },
-            { timestamp: 'Day 9', reconstruction_error: 0.18, is_anomaly: false },
-            { timestamp: 'Day 10', reconstruction_error: 0.19, is_anomaly: false },
-          ],
-          anomaly_count: 2,
-          anomaly_trend: 'decreasing',
-          sensitivity: 0.7,
-        };
-        setData(mockData);
-        setThreshold(mockData.current_threshold);
+        setError(err instanceof Error ? err.message : 'Anomaly detection failed');
+        setData(null);
       } finally {
         setIsLoading(false);
       }

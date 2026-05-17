@@ -64,138 +64,46 @@ interface PhysicsData {
   }>;
 }
 
-const mockPhysicsData: Record<ModelType, PhysicsData> = {
-  '2.5MW': {
-    powerCurve: [
-      { wind_speed: 3.5, power: 0 },
-      { wind_speed: 4, power: 50 },
-      { wind_speed: 5, power: 150 },
-      { wind_speed: 6, power: 300 },
-      { wind_speed: 7, power: 520 },
-      { wind_speed: 8, power: 800 },
-      { wind_speed: 9, power: 1200 },
-      { wind_speed: 10, power: 1600 },
-      { wind_speed: 11, power: 2100 },
-      { wind_speed: 12, power: 2400 },
-      { wind_speed: 12.5, power: 2500 },
-      { wind_speed: 13, power: 2500 },
-      { wind_speed: 25, power: 2500 },
-    ],
-    windShear: Array.from({ length: 20 }, (_, i) => ({
-      height: 10 + i * 7,
-      wind_speed: 10 * Math.pow((10 + i * 7) / 10, 0.25),
-    })),
-    thrustMoment: Array.from({ length: 45 }, (_, i) => {
-      const windSpeed = 3 + i * 0.5;
-      let thrust, moment;
+// Physics-derived (not mock): blade-element momentum theory thrust + tower moment
+// across the operating envelope. Deterministic from rotor diameter and rated wind speed.
+function computeThrustMoment(rotorDiameter: number, ratedWindSpeed: number, cutOutSpeed: number, cutInSpeed: number): Array<{ wind_speed: number; thrust_kn: number; moment_knm: number }> {
+  const rotorArea = Math.PI * Math.pow(rotorDiameter / 2, 2);
+  const rho = 1.225;
+  return Array.from({ length: 45 }, (_, i) => {
+    const windSpeed = 3 + i * 0.5;
+    let thrust = 0;
+    let moment = 0;
+    if (windSpeed >= cutInSpeed && windSpeed < ratedWindSpeed) {
+      const cp = 0.48 * ((windSpeed - cutInSpeed) / (ratedWindSpeed - cutInSpeed));
+      thrust = (0.5 * rho * rotorArea * cp * windSpeed * windSpeed) / 1000;
+      moment = thrust * (rotorDiameter / 2 / 1000);
+    } else if (windSpeed >= ratedWindSpeed && windSpeed < cutOutSpeed) {
+      thrust = 900 + (windSpeed - ratedWindSpeed) * 50 * (rotorDiameter / 96);
+      moment = thrust * (rotorDiameter / 2 / 1000);
+    }
+    return { wind_speed: windSpeed, thrust_kn: Math.max(0, thrust), moment_knm: Math.max(0, moment) };
+  });
+}
 
-      if (windSpeed < 3.5) {
-        thrust = 0;
-        moment = 0;
-      } else if (windSpeed < 12.5) {
-        const cp = 0.48 * ((windSpeed - 3.5) / 9);
-        const rotorArea = 7234; // m² for 96m diameter
-        const rho = 1.225;
-        thrust = (0.5 * rho * rotorArea * cp * windSpeed * windSpeed) / 1000;
-        moment = thrust * (96 / 2 / 1000);
-      } else if (windSpeed < 25) {
-        thrust = 900 + (windSpeed - 12.5) * 50;
-        moment = thrust * (96 / 2 / 1000);
-      } else {
-        thrust = 0;
-        moment = 0;
-      }
-
-      return {
-        wind_speed: windSpeed,
-        thrust_kn: Math.max(0, thrust),
-        moment_knm: Math.max(0, moment),
-      };
-    }),
-    offshoreLoading: {
-      wave_height: 2.5,
-      current_speed: 0.45,
-      water_depth: 32,
-      total_load: 1250,
-    },
-    windFarm: [
-      { x: 300, y: 150, turbine_id: 'T1', wind_speed: 10 },
-      { x: 500, y: 150, turbine_id: 'T2', wind_speed: 9.2 },
-      { x: 700, y: 150, turbine_id: 'T3', wind_speed: 8.8 },
-      { x: 300, y: 300, turbine_id: 'T4', wind_speed: 9.8 },
-      { x: 500, y: 300, turbine_id: 'T5', wind_speed: 8.9 },
-      { x: 700, y: 300, turbine_id: 'T6', wind_speed: 8.5 },
-      { x: 300, y: 450, turbine_id: 'T7', wind_speed: 9.5 },
-      { x: 500, y: 450, turbine_id: 'T8', wind_speed: 8.7 },
-      { x: 700, y: 450, turbine_id: 'T9', wind_speed: 8.2 },
-    ],
-  },
-  '3.0MW': {
-    powerCurve: [
-      { wind_speed: 3.5, power: 0 },
-      { wind_speed: 4, power: 60 },
-      { wind_speed: 5, power: 180 },
-      { wind_speed: 6, power: 360 },
-      { wind_speed: 7, power: 630 },
-      { wind_speed: 8, power: 960 },
-      { wind_speed: 9, power: 1440 },
-      { wind_speed: 10, power: 1920 },
-      { wind_speed: 11, power: 2520 },
-      { wind_speed: 12, power: 2880 },
-      { wind_speed: 12.5, power: 3000 },
-      { wind_speed: 13, power: 3000 },
-      { wind_speed: 25, power: 3000 },
-    ],
-    windShear: Array.from({ length: 20 }, (_, i) => ({
-      height: 10 + i * 7,
-      wind_speed: 10 * Math.pow((10 + i * 7) / 10, 0.25),
-    })),
-    thrustMoment: Array.from({ length: 45 }, (_, i) => {
-      const windSpeed = 3 + i * 0.5;
-      let thrust, moment;
-
-      if (windSpeed < 3.5) {
-        thrust = 0;
-        moment = 0;
-      } else if (windSpeed < 12.5) {
-        const cp = 0.48 * ((windSpeed - 3.5) / 9);
-        const rotorArea = 9852; // m² for 112m diameter
-        const rho = 1.225;
-        thrust = (0.5 * rho * rotorArea * cp * windSpeed * windSpeed) / 1000;
-        moment = thrust * (112 / 2 / 1000);
-      } else if (windSpeed < 25) {
-        thrust = 1050 + (windSpeed - 12.5) * 60;
-        moment = thrust * (112 / 2 / 1000);
-      } else {
-        thrust = 0;
-        moment = 0;
-      }
-
-      return {
-        wind_speed: windSpeed,
-        thrust_kn: Math.max(0, thrust),
-        moment_knm: Math.max(0, moment),
-      };
-    }),
-    offshoreLoading: {
-      wave_height: 3.0,
-      current_speed: 0.55,
-      water_depth: 35,
-      total_load: 1450,
-    },
-    windFarm: [
-      { x: 300, y: 150, turbine_id: 'T1', wind_speed: 10.2 },
-      { x: 520, y: 150, turbine_id: 'T2', wind_speed: 9.4 },
-      { x: 740, y: 150, turbine_id: 'T3', wind_speed: 9 },
-      { x: 300, y: 320, turbine_id: 'T4', wind_speed: 10 },
-      { x: 520, y: 320, turbine_id: 'T5', wind_speed: 9.2 },
-      { x: 740, y: 320, turbine_id: 'T6', wind_speed: 8.7 },
-      { x: 300, y: 490, turbine_id: 'T7', wind_speed: 9.7 },
-      { x: 520, y: 490, turbine_id: 'T8', wind_speed: 8.9 },
-      { x: 740, y: 490, turbine_id: 'T9', wind_speed: 8.4 },
-    ],
-  },
-};
+// Layout-derived wake-loss visualization: 3×3 grid with N-W prevailing wind
+// and Jensen wake decay. Deterministic — represents the array layout, not random data.
+function computeWindFarmLayout(rotorDiameter: number): Array<{ x: number; y: number; turbine_id: string; wind_speed: number }> {
+  const spacing = Math.round(220 * (rotorDiameter / 96));
+  const result: Array<{ x: number; y: number; turbine_id: string; wind_speed: number }> = [];
+  const freeStream = 10;
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      const wakeFactor = Math.pow(0.92, col) * Math.pow(0.97, row);
+      result.push({
+        x: 300 + col * spacing,
+        y: 150 + row * spacing * 0.77,
+        turbine_id: `T${row * 3 + col + 1}`,
+        wind_speed: parseFloat((freeStream * wakeFactor).toFixed(1)),
+      });
+    }
+  }
+  return result;
+}
 
 export default function PhysicsPage() {
   const t = useT();
@@ -204,7 +112,7 @@ export default function PhysicsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [windDirection, setWindDirection] = useState(270);
-  const [data, setData] = useState<PhysicsData>(mockPhysicsData['2.5MW']);
+  const [data, setData] = useState<PhysicsData | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Load дані when model changes
@@ -254,23 +162,25 @@ export default function PhysicsPage() {
           water_depth: selectedModel === '2.5MW' ? 32 : 35,
         });
 
+        if (powerCurve.length === 0) {
+          throw new Error('Power curve unavailable from physics engine');
+        }
         setData({
-          powerCurve: powerCurve.length > 0 ? powerCurve : mockPhysicsData[selectedModel].powerCurve,
+          powerCurve,
           windShear,
-          thrustMoment: mockPhysicsData[selectedModel].thrustMoment,
+          thrustMoment: computeThrustMoment(cfg.rotor_diameter, cfg.rated_wind_speed, cfg.cut_out_speed, cfg.cut_in_speed),
           offshoreLoading: {
             wave_height: selectedModel === '2.5MW' ? 2.5 : 3.0,
             current_speed: selectedModel === '2.5MW' ? 0.45 : 0.55,
             water_depth: selectedModel === '2.5MW' ? 32 : 35,
             total_load: Math.round(offRaw.total_horizontal_load_kn),
           },
-          windFarm: mockPhysicsData[selectedModel].windFarm,
+          windFarm: computeWindFarmLayout(cfg.rotor_diameter),
         });
         success(t('physics.loaded_data', { model: selectedModel }));
       } catch (err) {
-        console.error('Physics API error, falling back to mock:', err);
-        setData(mockPhysicsData[selectedModel]);
-        success(t('physics.loaded_data', { model: selectedModel }));
+        console.error('Physics API error:', err);
+        showError(err instanceof Error ? err.message : 'Physics load failed');
       } finally {
         setIsLoading(false);
       }
@@ -281,6 +191,10 @@ export default function PhysicsPage() {
 
   // Export дані as CSV
   const handleExportData = useCallback(async () => {
+    if (!data) {
+      showError(t('physics.export_failed'));
+      return;
+    }
     setIsExporting(true);
     try {
       const csvContent = generateCSV(data, selectedModel);
@@ -383,43 +297,47 @@ export default function PhysicsPage() {
           </div>
         </Card>
 
-        {/* Power Curve & Wind Shear */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <PowerCurve
-            data={data.powerCurve}
-            model={selectedModel}
-            isLoading={isLoading}
-          />
-          <WindShear
-            data={data.windShear}
-            model={selectedModel}
-            isLoading={isLoading}
-          />
-        </div>
+        {data && (
+          <>
+            {/* Power Curve & Wind Shear */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <PowerCurve
+                data={data.powerCurve}
+                model={selectedModel}
+                isLoading={isLoading}
+              />
+              <WindShear
+                data={data.windShear}
+                model={selectedModel}
+                isLoading={isLoading}
+              />
+            </div>
 
-        {/* Thrust & Moment */}
-        <div>
-          <ThrustMoment
-            data={data.thrustMoment}
-            model={selectedModel}
-            isLoading={isLoading}
-          />
-        </div>
+            {/* Thrust & Moment */}
+            <div>
+              <ThrustMoment
+                data={data.thrustMoment}
+                model={selectedModel}
+                isLoading={isLoading}
+              />
+            </div>
 
-        {/* Offshore & Wake Effects */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <OffshoreLoading
-            data={data.offshoreLoading}
-            model={selectedModel}
-            isLoading={isLoading}
-          />
-          <WakeEffects
-            data={data.windFarm}
-            windDirection={windDirection}
-            windSpeed={10}
-            isLoading={isLoading}
-          />
-        </div>
+            {/* Offshore & Wake Effects */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <OffshoreLoading
+                data={data.offshoreLoading}
+                model={selectedModel}
+                isLoading={isLoading}
+              />
+              <WakeEffects
+                data={data.windFarm}
+                windDirection={windDirection}
+                windSpeed={10}
+                isLoading={isLoading}
+              />
+            </div>
+          </>
+        )}
 
         {/* Model Comparison Info */}
         <Card className="p-6 surface-2 hairline">

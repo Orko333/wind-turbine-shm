@@ -49,24 +49,7 @@ export function SHAPExplanation({ modelType = 'cnn', turbineId }: SHAPExplanatio
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Симуляція API-виклику для отримання SHAP-пояснень
     const loadData = async () => {
-      const mockData: SHAPData = {
-        model_type: modelType === 'cnn' ? 'CNN Damage Classifier' : 'LSTM RUL Predictor',
-        base_value: 0.4,
-        model_prediction: 0.875,
-        features: [
-          { feature: 'Vibration Amplitude', shap_value: 0.15, contribution: 'positive' },
-          { feature: 'Temperature Trend', shap_value: 0.12, contribution: 'positive' },
-          { feature: 'Power Output', shap_value: -0.08, contribution: 'negative' },
-          { feature: 'Blade Pitch Angle', shap_value: 0.1, contribution: 'positive' },
-          { feature: 'Rotor Speed Variance', shap_value: 0.08, contribution: 'positive' },
-          { feature: 'Gearbox Oil Temp', shap_value: 0.06, contribution: 'positive' },
-          { feature: 'Wind Speed', shap_value: -0.04, contribution: 'negative' },
-          { feature: 'Humidity Level', shap_value: 0.03, contribution: 'positive' },
-        ],
-      };
-
       try {
         setIsLoading(true);
         const backend = await postApiWithAuth<BackendSCDAResult>('/predict/scada?explain=true', {
@@ -82,30 +65,29 @@ export function SHAPExplanation({ modelType = 'cnn', turbineId }: SHAPExplanatio
           nacelle_temp_degC: 45.0,
         });
 
-        if (backend.shap_explanation && typeof backend.shap_explanation === 'object') {
-          const features: FeatureImportance[] = Object.entries(backend.shap_explanation).map(
-            ([key, value]) => ({
-              feature: key,
-              shap_value: value,
-              contribution: value >= 0 ? 'positive' : 'negative',
-            })
-          );
-          setData({
-            model_type: modelType === 'cnn' ? 'CNN Damage Classifier' : 'LSTM RUL Predictor',
-            base_value: backend.damage_index ?? 0.4,
-            model_prediction:
-              (backend.class_probabilities?.['Warning'] ?? 0) +
-              (backend.class_probabilities?.['Critical'] ?? 0),
-            features,
-          });
-        } else {
-          setData(mockData);
+        if (!backend.shap_explanation || typeof backend.shap_explanation !== 'object') {
+          throw new Error('Backend SHAP explanation missing');
         }
+        const features: FeatureImportance[] = Object.entries(backend.shap_explanation).map(
+          ([key, value]) => ({
+            feature: key,
+            shap_value: value,
+            contribution: value >= 0 ? 'positive' : 'negative',
+          })
+        );
+        setData({
+          model_type: modelType === 'cnn' ? 'CNN Damage Classifier' : 'LSTM RUL Predictor',
+          base_value: backend.damage_index ?? 0.4,
+          model_prediction:
+            (backend.class_probabilities?.['Warning'] ?? 0) +
+            (backend.class_probabilities?.['Critical'] ?? 0),
+          features,
+        });
         setError(null);
       } catch (err) {
         console.error('SHAPExplanation API error:', err);
-        setData(mockData);
-        setError(null);
+        setError(err instanceof Error ? err.message : 'SHAP load failed');
+        setData(null);
       } finally {
         setIsLoading(false);
       }
