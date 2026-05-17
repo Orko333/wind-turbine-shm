@@ -6,6 +6,22 @@ import { Button } from '@/components/ui/button';
 import { ProgressBar } from './ProgressBar';
 import { Play, RotateCcw, Download } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
+import { getApiWithAuth, postApiWithAuth } from '@/lib/api';
+
+interface BackendOpenFASTResult {
+  turbine_id: string;
+  status: string;
+  simulation_time_sec: number;
+  mean_power_kw: number;
+  max_tower_moment_knm: number;
+  mean_tower_moment_knm: number;
+  dominant_frequency_hz: number;
+  method: string;
+}
+
+interface TurbineListResp {
+  data: Array<{ turbine_id: string }>;
+}
 
 interface OpenFASTConfig {
   wind_speed: number;
@@ -56,49 +72,38 @@ export function OpenFASTRunner() {
     }
 
     setIsRunning(true);
-    setProgress(0);
-    setEta(Math.ceil(config.duration / 10)); // Грубе оцінювання
+    setProgress(10);
+    setEta(Math.ceil(config.duration / 60));
 
     try {
-      // Симуляція обчислення OpenFAST з оновленням прогресу
-      const totalSteps = Math.ceil(config.duration / config.timestep);
-      let currentStep = 0;
+      // Determine current user's first turbine for the simulation context
+      const listRes = await getApiWithAuth<TurbineListResp>('/turbines/?page=1&page_size=1');
+      const turbineId = listRes.data?.[0]?.turbine_id;
+      if (!turbineId) throw new Error('No turbines available for simulation');
+      setProgress(30);
 
-      const progressInterval = setInterval(() => {
-        currentStep += totalSteps * 0.15;
-        if (currentStep > totalSteps) currentStep = totalSteps;
-
-        const progressPct = (currentStep / totalSteps) * 100;
-        setProgress(progressPct);
-        setEta((prev) => (prev && prev > 0 ? prev - 1 : undefined));
-
-        if (currentStep >= totalSteps) {
-          clearInterval(progressInterval);
+      // Call the real OpenFAST endpoint
+      const backend = await postApiWithAuth<BackendOpenFASTResult>(
+        '/simulation-advanced/openfast/run',
+        {
+          turbine_id: turbineId,
+          wind_speed: config.wind_speed,
+          turbulence_intensity: config.turbulence,
+          wind_shear_exponent: 0.2,
+          simulation_time_sec: Math.min(config.duration, 120),
+          timestep: config.timestep,
         }
-      }, 500);
-
-      // Симуляція API-виклику
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      clearInterval(progressInterval);
-
-      // Спершу спроба основного методу (інколи симулюємо невдачу)
-      const useFallback = Math.random() > 0.7;
+      );
+      setProgress(90);
 
       const simulationResults: SimulationResults = {
-        power: (() => {
-          const baselineEfficiency = 0.45;
-          const windEfficiency = Math.min((config.wind_speed / 15) * baselineEfficiency, baselineEfficiency);
-          return (windEfficiency * config.wind_speed ** 3 * 0.5) / 1000; // МВт
-        })(),
-        moment: (() => {
-          return config.wind_speed * 450 + Math.random() * 100; // Нм
-        })(),
-        frequency: 1.2 + (config.wind_speed / 20) * 0.3, // Гц
-        method: useFallback ? 'BEM (Fallback)' : 'OpenFAST Primary',
+        power: backend.mean_power_kw / 1000, // kW -> MW
+        moment: backend.max_tower_moment_knm,
+        frequency: backend.dominant_frequency_hz,
+        method: backend.method === 'fallback' ? 'BEM (Fallback)' : 'OpenFAST',
         timestamp: new Date().toISOString(),
       };
 
-      // Кешування результатів
       const newCache = new Map(cachedResults);
       newCache.set(cacheKey, simulationResults);
       setCachedResults(newCache);
@@ -107,11 +112,12 @@ export function OpenFASTRunner() {
       setProgress(100);
       success(`Simulation completed using ${simulationResults.method}`);
     } catch (err) {
-      showError('Помилка симуляції — перевірте параметри');
+      showError(err instanceof Error ? err.message : 'Помилка симуляції — перевірте параметри');
       console.error(err);
       setProgress(0);
     } finally {
       setIsRunning(false);
+      setEta(undefined);
     }
   }, [config, cachedResults, cacheKey, success, showError]);
 

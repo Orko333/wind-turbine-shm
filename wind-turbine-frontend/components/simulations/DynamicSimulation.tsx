@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ProgressBar } from './ProgressBar';
 import { Upload, Play, RotateCcw, Download, AlertCircle } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
+import { getApiWithAuth, postApiWithAuth } from '@/lib/api';
 
 interface DynamicResults {
   max_stress: number;
@@ -103,60 +104,47 @@ export function DynamicSimulation() {
     }
 
     setIsRunning(true);
-    setProgress(0);
+    setProgress(10);
 
     try {
-      const totalSteps = windData.data.length;
-      let currentStep = 0;
+      const listRes = await getApiWithAuth<{ data: Array<{ turbine_id: string }> }>('/turbines/?page=1&page_size=1');
+      const turbineId = listRes.data?.[0]?.turbine_id;
+      if (!turbineId) throw new Error('No turbines available');
+      setProgress(25);
 
-      // Симуляція обчислення з оновленням прогресу
-      const progressInterval = setInterval(() => {
-        currentStep = Math.min(currentStep + totalSteps * 0.1, totalSteps);
-        const progressPct = (currentStep / totalSteps) * 100;
-        setProgress(progressPct);
-
-        if (currentStep >= totalSteps) {
-          clearInterval(progressInterval);
+      interface DynBackend {
+        max_displacement_mm: number;
+        max_stress_mpa: number;
+        cumulative_damage: number;
+        rul_years: number;
+        simulation_time_sec: number;
+      }
+      const backend = await postApiWithAuth<DynBackend>(
+        '/simulation-advanced/rom/dynamic-simulation',
+        {
+          turbine_id: turbineId,
+          wind_speed_timeseries: windData.data,
+          dt: 0.1,
         }
-      }, 300);
+      );
+      setProgress(85);
 
-      // Симуляція API-виклику
-      await new Promise((resolve) => setTimeout(resolve, 3500));
-      clearInterval(progressInterval);
-
-      // Розрахунок результатів за даними вітру
       const maxWind = Math.max(...windData.data);
       const avgWind = windData.data.reduce((a, b) => a + b, 0) / windData.data.length;
-      const variance = windData.data.reduce((sum, v) => sum + (v - avgWind) ** 2, 0) / windData.data.length;
 
-      // Симуляція розрахунку напружень та пошкоджень
-      const baseStress = 150; // МПа базове значення
-      const stressVariability = Math.sqrt(variance) * 20;
-      const maxStress = baseStress + stressVariability + (maxWind - 12) * 15;
-
-      // Спрощений розрахунок пошкоджень (на основі S-N кривої)
-      const damagePerCycle = windData.data.map((ws) => {
-        const stressAmp = 100 + (ws - 12) * 10;
-        return Math.pow(stressAmp / 300, 3); // Експонента S-N кривої ~3
-      });
-      const cumulativeDamage = damagePerCycle.reduce((a, b) => a + b, 0);
-      const rulYears = Math.max(0.1, 20 / (cumulativeDamage + 0.1)); // RUL у роках
-
-      const simulationResults: DynamicResults = {
-        max_stress: maxStress,
-        cumulative_damage: cumulativeDamage,
-        rul_years: rulYears,
+      setResults({
+        max_stress: backend.max_stress_mpa,
+        cumulative_damage: backend.cumulative_damage,
+        rul_years: backend.rul_years,
         peak_wind: maxWind,
         avg_wind: avgWind,
-        simulation_time: windData.data.length * 0.1, // секунди
+        simulation_time: backend.simulation_time_sec,
         timestamp: new Date().toISOString(),
-      };
-
-      setResults(simulationResults);
+      });
       setProgress(100);
       success('Динамічну симуляцію завершено');
     } catch (err) {
-      showError('Симуляцію не вдалося виконати');
+      showError(err instanceof Error ? err.message : 'Симуляцію не вдалося виконати');
       console.error(err);
       setProgress(0);
     } finally {

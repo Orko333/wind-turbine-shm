@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ProgressBar } from './ProgressBar';
 import { AlertCircle, Play, RotateCcw, Download } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
+import { getApiWithAuth, postApiWithAuth } from '@/lib/api';
 
 interface ROMConfig {
   height: number;
@@ -44,66 +45,80 @@ export function ROMStressAnalysis() {
     return (area * yieldStrength) / 10; // Конвертація в кН
   }, [config.diameter]);
 
-  // Конфігурація ROM
-  const configureROM = useCallback(() => {
+  // Configure ROM on backend (real call)
+  const configureROM = useCallback(async () => {
     if (config.height <= 0 || config.diameter <= 0 || config.modes <= 0) {
       showError('Всі параметри мають бути позитивними');
       return;
     }
-
-    setIsConfigured(true);
-    success('ROM налаштовано успішно');
+    try {
+      const listRes = await getApiWithAuth<{ data: Array<{ turbine_id: string }> }>('/turbines/?page=1&page_size=1');
+      const turbineId = listRes.data?.[0]?.turbine_id;
+      if (!turbineId) throw new Error('No turbines available');
+      await postApiWithAuth(`/simulation-advanced/rom/configure/${turbineId}`, {
+        n_elements: 20,
+        n_modes: config.modes,
+        height: config.height,
+        diameter: config.diameter,
+        thickness: 0.05,
+        E: 210e9,
+        rho: 7850,
+      });
+      setIsConfigured(true);
+      success('ROM налаштовано успішно');
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'ROM configure failed');
+      console.error(err);
+    }
   }, [config, success, showError]);
 
-  // Запуск аналізу
+  // Run real ROM stress analysis on backend
   const runAnalysis = useCallback(async () => {
     setIsRunning(true);
-    setProgress(0);
+    setProgress(10);
 
     try {
-      // Симуляція обчислення ROM-аналізу
-      const steps = 20;
-      for (let i = 0; i <= steps; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        setProgress((i / steps) * 100);
+      const listRes = await getApiWithAuth<{ data: Array<{ turbine_id: string }> }>('/turbines/?page=1&page_size=1');
+      const turbineId = listRes.data?.[0]?.turbine_id;
+      if (!turbineId) throw new Error('No turbines available');
+      setProgress(30);
+
+      interface ROMAnalyzeResult {
+        max_stress_mpa: number;
+        max_displacement_mm: number;
+        safety_factor: number;
+        natural_frequencies_hz: number[];
       }
+      const backend = await postApiWithAuth<ROMAnalyzeResult>(
+        '/simulation-advanced/rom/analyze-stress',
+        { turbine_id: turbineId, force_base_kn: force }
+      );
+      setProgress(80);
 
-      // Розрахунок результатів на основі моделі ROM
-      const stressRatio = force / maxForceCapacity();
-      const stressMPa = 355 * stressRatio; // Границя плинності * коефіцієнт використання
-      const displacementMm = force * config.height * 0.0008; // Спрощений прогин балки
-
+      const utilization = (backend.max_stress_mpa / 355) * 100;
       let safetyStatus: 'safe' | 'warning' | 'critical' = 'safe';
-      if (stressRatio > 0.9) safetyStatus = 'critical';
-      else if (stressRatio > 0.7) safetyStatus = 'warning';
+      if (utilization > 90) safetyStatus = 'critical';
+      else if (utilization > 70) safetyStatus = 'warning';
 
-      // Власні частоти з модального аналізу
-      const naturalFrequencies = Array.from({ length: config.modes }, (_, i) => {
-        const baseFreq = 0.3 * Math.sqrt(config.diameter / config.height);
-        return baseFreq * (i + 1) * (1 + i * 0.15);
-      });
-
-      const analysisResults: ROMResults = {
-        stress: stressMPa,
-        displacement: displacementMm,
-        utilization: stressRatio * 100,
+      setResults({
+        stress: backend.max_stress_mpa,
+        displacement: backend.max_displacement_mm,
+        utilization,
         safety_status: safetyStatus,
         max_force_capacity: maxForceCapacity(),
-        natural_frequencies: naturalFrequencies,
+        natural_frequencies: backend.natural_frequencies_hz ?? [],
         timestamp: new Date().toISOString(),
-      };
-
-      setResults(analysisResults);
+      });
       setProgress(100);
       success('Аналіз ROM завершено');
     } catch (err) {
-      showError('Помилка аналізу');
+      showError(err instanceof Error ? err.message : 'Помилка аналізу');
       console.error(err);
       setProgress(0);
     } finally {
       setIsRunning(false);
     }
-  }, [force, config.height, config.diameter, config.modes, maxForceCapacity, success, showError]);
+  }, [force, maxForceCapacity, success, showError]);
 
   const exportResults = useCallback(() => {
     if (!results) return;
