@@ -2,6 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   XAxis,
   YAxis,
@@ -13,31 +14,32 @@ import {
   AreaChart,
 } from 'recharts';
 import { useTurbineData, useTurbineAlerts } from '@/hooks/useTurbineData';
+import { getApiWithAuth } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, Zap, Wind, Gauge } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 
-// Mock дані generator for 24h power trend
-function generatePowerTrend(power: number) {
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-  const variation = Math.sin((power / 1000) * Math.PI) * 200;
-  return hours.map((hour) => ({
-    hour: `${hour}:00`,
-    power: Math.max(0, power - 200 + Math.random() * 400 + variation),
-  }));
+interface ScadaSample {
+  timestamp: string;
+  power_kw: number;
+}
+interface ScadaHistoryResponse {
+  turbine_id: string;
+  count: number;
+  samples: ScadaSample[];
 }
 
-// Mock RUL forecast дані
-function generateRULForecast(rul: number) {
-  const months = Array.from({ length: 24 }, (_, i) => i);
-  return months.map((month) => ({
-    month: month,
-    rul: Math.max(0.1, rul - (month * rul) / 24),
-    upper: Math.max(0.1, rul + 1 - (month * rul) / 24),
-    lower: Math.max(0.1, rul - 1 - (month * rul) / 24),
-  }));
+interface RulTrendPoint {
+  timestamp: string;
+  rul_days: number | null;
+  damage_index: number;
+  alert_level: string;
+}
+interface RulTrendResponse {
+  turbine_id: string;
+  predictions: RulTrendPoint[];
 }
 
 export default function OverviewPage() {
@@ -57,16 +59,53 @@ export default function OverviewPage() {
 
   const currentData = realtimeData;
 
-  // Generate mock chart дані
-  const powerTrendData = useMemo(
-    () => generatePowerTrend(currentData?.power_kw || turbine?.power_kw || 0),
-    [currentData?.power_kw, turbine?.power_kw]
-  );
+  // 24h power trend from real SCADA history — bucket samples into hours
+  const { data: scadaHistory } = useQuery({
+    queryKey: ['scada-history', turbineId, 24],
+    queryFn: () => getApiWithAuth<ScadaHistoryResponse>(`/scada/history/${turbineId}?hours=24`),
+    enabled: Boolean(turbineId),
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
 
-  const rulForecastData = useMemo(
-    () => generateRULForecast(turbine?.rul_years || 0),
-    [turbine?.rul_years]
-  );
+  const powerTrendData = useMemo(() => {
+    const samples = scadaHistory?.samples ?? [];
+    if (!samples.length) return [];
+    // Bucket by hour-of-day (last 24 hours)
+    const buckets: Record<number, { sum: number; n: number }> = {};
+    for (const s of samples) {
+      const h = new Date(s.timestamp).getHours();
+      if (!buckets[h]) buckets[h] = { sum: 0, n: 0 };
+      buckets[h].sum += s.power_kw;
+      buckets[h].n += 1;
+    }
+    return Array.from({ length: 24 }, (_, h) => ({
+      hour: `${String(h).padStart(2, '0')}:00`,
+      power: buckets[h] ? buckets[h].sum / buckets[h].n : 0,
+    }));
+  }, [scadaHistory]);
+
+  // RUL trend from real backend analytics
+  const { data: rulTrend } = useQuery({
+    queryKey: ['rul-trend', turbineId],
+    queryFn: () => getApiWithAuth<RulTrendResponse>(`/analytics/turbine/${turbineId}/rul-trend?days=24`),
+    enabled: Boolean(turbineId),
+    staleTime: 5 * 60_000,
+  });
+
+  const rulForecastData = useMemo(() => {
+    const points = rulTrend?.predictions ?? [];
+    if (!points.length) return [];
+    return points.map((p, i) => {
+      const rulYears = (p.rul_days ?? (1 - p.damage_index) * 365 * 20) / 365;
+      return {
+        month: i,
+        rul: Math.max(0, rulYears),
+        upper: Math.max(0, rulYears * 1.1),
+        lower: Math.max(0, rulYears * 0.9),
+      };
+    });
+  }, [rulTrend]);
 
   const recentAlerts = alerts.slice(0, 3);
 

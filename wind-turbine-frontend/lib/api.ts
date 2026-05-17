@@ -160,6 +160,27 @@ export async function putApiWithAuth<T>(
 }
 
 /**
+ * PATCH request with authentication
+ */
+export async function patchApiWithAuth<T>(
+  endpoint: string,
+  body: unknown,
+  options?: RequestInit & { timeout?: number }
+): Promise<T> {
+  const token = getAuthToken();
+
+  return fetchJson<T>(endpoint, {
+    ...options,
+    method: "PATCH",
+    body: JSON.stringify(body),
+    headers: {
+      Authorization: token ? `Bearer ${token}` : "",
+      ...options?.headers,
+    },
+  });
+}
+
+/**
  * DELETE request with authentication
  */
 export async function deleteApiWithAuth<T>(

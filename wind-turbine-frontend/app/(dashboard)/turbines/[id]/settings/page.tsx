@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useState, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTurbineData } from '@/hooks/useTurbineData';
+import { patchApiWithAuth } from '@/lib/api';
 import { useRole } from '@/hooks/useRole';
 import { useToast } from '@/hooks/useToast';
 import { Card } from '@/components/ui/card';
@@ -105,7 +106,7 @@ export default function SettingsPage() {
     []
   );
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!canEdit) {
       showError(t('turbines.no_permission_edit'));
       return;
@@ -113,10 +114,16 @@ export default function SettingsPage() {
 
     setIsSaving(true);
     try {
+      // rated_power_kw is a real backend column — persist via PATCH so it
+      // survives across sessions and devices. Everything else (tower height,
+      // material props, cut-in/out) doesn't have a backend column yet, so
+      // we still keep those in localStorage as a session-level override.
+      await patchApiWithAuth(`/turbines/${turbineId}`, {
+        rated_power_kw: formData.rated_power_kw,
+      });
       saveSettings(turbineId, formData);
-      // Invalidate cached turbine detail so the layout/header and overview KPIs
-      // pick up the new overrides (rated power, tower height, rotor diameter).
       queryClient.invalidateQueries({ queryKey: ['turbine', turbineId] });
+      queryClient.invalidateQueries({ queryKey: ['turbines'] });
       success(t('turbines.settings_saved'));
       setIsEditing(false);
     } catch (err) {

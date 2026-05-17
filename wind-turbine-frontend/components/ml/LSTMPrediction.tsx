@@ -97,58 +97,8 @@ export function LSTMPrediction({ turbineId }: LSTMPredictionProps) {
         setError(null);
       } catch (err) {
         console.error('LSTMPrediction API error:', err);
-        const mockData: PredictionData = {
-          current_rul_lstm: 245,
-          current_rul_physics: 312,
-          forecast: [
-            {
-              timestamp: 'Day 1',
-              rul_lstm: 245,
-              rul_lstm_upper: 265,
-              rul_lstm_lower: 225,
-              rul_physics: 312,
-            },
-            {
-              timestamp: 'Day 30',
-              rul_lstm: 215,
-              rul_lstm_upper: 241,
-              rul_lstm_lower: 189,
-              rul_physics: 290,
-            },
-            {
-              timestamp: 'Day 60',
-              rul_lstm: 185,
-              rul_lstm_upper: 219,
-              rul_lstm_lower: 151,
-              rul_physics: 268,
-            },
-            {
-              timestamp: 'Day 90',
-              rul_lstm: 155,
-              rul_lstm_upper: 197,
-              rul_lstm_lower: 113,
-              rul_physics: 246,
-            },
-            {
-              timestamp: 'Day 120',
-              rul_lstm: 125,
-              rul_lstm_upper: 175,
-              rul_lstm_lower: 75,
-              rul_physics: 224,
-            },
-            {
-              timestamp: 'Day 150',
-              rul_lstm: 95,
-              rul_lstm_upper: 153,
-              rul_lstm_lower: 37,
-              rul_physics: 202,
-            },
-          ],
-          lstm_accuracy: 94.2,
-          physics_accuracy: 87.5,
-        };
-        setData(mockData);
-        setError(null);
+        setError(err instanceof Error ? err.message : 'LSTM prediction failed');
+        setData(null);
       } finally {
         setIsLoading(false);
       }
