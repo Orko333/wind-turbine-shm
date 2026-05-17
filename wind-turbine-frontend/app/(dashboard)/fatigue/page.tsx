@@ -176,11 +176,11 @@ export default function FatiguePage() {
         const topDamagedTurbines = [...turbines]
           .sort((a, b) => b.cumulative_damage - a.cumulative_damage)
           .slice(0, 5)
-          .map((t) => ({
-            turbine_id: t.turbine_id,
-            damage_rate: t.cumulative_damage * 100,
-            rul_years: t.rul_years,
-            health_score: Math.round((1 - t.cumulative_damage) * 100),
+          .map((tb) => ({
+            turbine_id: tb.turbine_id,
+            damage_rate: tb.cumulative_damage,
+            rul_years: tb.rul_years,
+            health_score: Math.round((1 - tb.cumulative_damage) * 100),
           }));
 
         const rulDistribution = [

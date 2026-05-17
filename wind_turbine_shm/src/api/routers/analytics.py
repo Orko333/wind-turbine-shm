@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from datetime import datetime, timedelta
 from pydantic import BaseModel
+from loguru import logger
 
 from ...database.config import get_db
 from ...database.models import User, Turbine, TurbinePrediction
