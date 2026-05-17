@@ -211,6 +211,32 @@ def _load_user_config(db: Session, owner_id, turbine_id_str: str) -> dict:
         return {}
 
 
+def _load_global_config(db: Session, owner_id) -> dict:
+    """Return the user's global TurbineSettings from /config page.
+
+    Settings page writes via PUT /storage/config/turbine-settings. Keys
+    include air_density, gravity, safety_factor, design_life_years,
+    inspection_interval_months. Empty dict if nothing saved.
+    """
+    try:
+        from .user_storage import UserStorage
+        row = (
+            db.query(UserStorage)
+            .filter(UserStorage.user_id == str(owner_id))
+            .filter(UserStorage.namespace == "config")
+            .filter(UserStorage.key == "turbine-settings")
+            .first()
+        )
+        if not row:
+            return {}
+        import json as _json
+        parsed = _json.loads(row.value)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception as exc:
+        logger.warning(f"global config load failed: {exc}")
+        return {}
+
+
 def _turbine_to_dashboard(t: Turbine, db: Session | None = None) -> dict:
     """Map DB model → frontend-compatible Turbine shape.
 
@@ -224,11 +250,17 @@ def _turbine_to_dashboard(t: Turbine, db: Session | None = None) -> dict:
     up automatically.
     """
     cfg = _load_user_config(db, t.owner_id, t.turbine_id) if db is not None else {}
+    global_cfg = _load_global_config(db, t.owner_id) if db is not None else {}
     rated = float(cfg.get("rated_power_kw") or t.rated_power_kw or 2000.0)
     status = _alert_to_status(t.alert_level)
     default_d, default_h = _geometry_for(t.model, rated)
     rotor_d = float(cfg.get("rotor_diameter") or default_d)
     tower_h = float(cfg.get("tower_height") or default_h)
+    # Per-turbine overrides win; global TurbineSettings (air density,
+    # design life, safety factor) apply to every turbine.
+    effective_air_density = cfg.get("air_density") or global_cfg.get("air_density")
+    design_life = float(global_cfg.get("design_life_years") or 20.0)
+    safety_factor = float(global_cfg.get("safety_factor") or 1.0)
     # Prime the simulator with the persisted damage so its trajectory matches
     # what the rest of the app shows, then snapshot (no DB write). Also push
     # the user's saved physics overrides (rated power, geometry, cut-in/out,
@@ -243,9 +275,15 @@ def _turbine_to_dashboard(t: Turbine, db: Session | None = None) -> dict:
         tower_height=tower_h,
         cut_in_speed=cfg.get("cut_in_speed"),
         cut_out_speed=cfg.get("cut_out_speed"),
-        air_density=cfg.get("air_density"),
+        air_density=effective_air_density,
     )
     sample = state.tick()
+    # Safety factor scales the assumed damage rate up (pessimistic) and
+    # divides RUL down; design_life replaces the hardcoded 20-year baseline
+    # when computing damage_rate. Both come straight from /config.
+    rul_years_effective = round(((t.rul_days or design_life * 365.0) / 365.0) / safety_factor, 1)
+    ageing_years = max(0.5, design_life - rul_years_effective)
+    damage_rate_pct_per_year = round((t.cumulative_damage or 0) * 100.0 / ageing_years * safety_factor, 2)
     power_now = 0.0 if status == "offline" else sample.power_kw
     return {
         "id": str(t.id),
@@ -267,8 +305,11 @@ def _turbine_to_dashboard(t: Turbine, db: Session | None = None) -> dict:
         "power_kw": power_now,
         "wind_speed": sample.wind_speed,
         "rotor_rpm": sample.rotor_rpm,
-        "rul_years": round((t.rul_days / 365.0) if t.rul_days else 12.0, 1),
-        "damage_rate": round((t.cumulative_damage or 0) * 100 / max(0.1, (t.rul_days or 7300) / 365.0), 2),
+        "rul_years": rul_years_effective,
+        "damage_rate": damage_rate_pct_per_year,
+        "design_life_years": design_life,
+        "safety_factor": safety_factor,
+        "inspection_interval_months": int(global_cfg.get("inspection_interval_months") or 12),
         "cumulative_damage": t.cumulative_damage,
         "damage_fraction": t.damage_fraction,
         "alert_level": t.alert_level,
