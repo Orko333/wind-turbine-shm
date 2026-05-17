@@ -72,10 +72,10 @@ export default function MonitoringPage() {
     const ts = new Date().toISOString();
     const b = snapshot.blade_condition;
     return [1, 2, 3].map((id) => ({
-      blade_id: id,
-      erosion_percent: b.erosion_percent + (id - 2) * 0.5,
+      blade_id: `BLADE-${id}`,
+      erosion_percent: Math.max(0, b.erosion_percent + (id - 2) * 0.5),
       ice_accretion_percent: b.ice_percent,
-      mass_imbalance_kg: b.imbalance_percent * 0.5,
+      imbalance_percent: Math.max(0, b.imbalance_percent + (id - 2) * 0.3),
       status: (b.erosion_percent > 15 ? 'critical' : b.erosion_percent > 7 ? 'warning' : 'healthy') as 'critical' | 'warning' | 'healthy',
       last_updated: ts,
     }));
