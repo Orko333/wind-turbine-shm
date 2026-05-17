@@ -362,6 +362,8 @@ export const translations = {
 
     // ─── Fatigue page ───────────────────────────────────
     'fatigue.refreshed':             'Data refreshed',
+    'fatigue.warning.high_damage_rate': 'High damage rate',
+    'fatigue.warning.low_rul':       'Low RUL',
     'fatigue.load_failed':           'Failed to load fatigue data',
     'fatigue.title_a': 'Fatigue',
     'fatigue.title_b': 'Analysis.',
@@ -1353,6 +1355,8 @@ export const translations = {
 
     // ─── Сторінка Втома ─────────────────────────────────
     'fatigue.refreshed':             'Дані оновлено',
+    'fatigue.warning.high_damage_rate': 'Висока швидкість пошкодження',
+    'fatigue.warning.low_rul':       'Низький RUL',
     'fatigue.load_failed':           'Не вдалося завантажити дані втоми',
     'fatigue.title_a': 'Аналіз',
     'fatigue.title_b': 'втоми.',

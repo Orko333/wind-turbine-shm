@@ -20,7 +20,7 @@ import { GoodmanDiagram } from '@/components/fatigue/GoodmanDiagram';
 import { RainflowHistogram } from '@/components/fatigue/RainflowHistogram';
 import { SNChart } from '@/components/fatigue/SNChart';
 import { formatDate } from '@/lib/formatting';
-import { useT } from '@/lib/i18n';
+import { useT, useLocale } from '@/lib/i18n';
 import { getApiWithAuth } from '@/lib/api';
 
 interface TurbineItem {
@@ -217,6 +217,7 @@ const mockFatigueData: FatigueData = {
 
 export default function FatiguePage() {
   const t = useT();
+  const { locale } = useLocale();
   const { success, error: showError } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -262,13 +263,37 @@ export default function FatiguePage() {
         ];
 
         const avgDamage = turbines.reduce((s, t) => s + t.cumulative_damage, 0) / turbines.length || 0;
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const damageHistory = months.map((month, i) => ({
-          month,
-          cumulative_damage: parseFloat((avgDamage * (i + 1) / 12 * 100).toFixed(2)),
-        }));
+        // Damage accumulation grows linearly with time across the selected
+        // date range, so changing the period actually redraws the chart.
+        const fromMs = dateRange.from.getTime();
+        const toMs = dateRange.to.getTime();
+        const spanMs = Math.max(toMs - fromMs, 30 * 24 * 60 * 60 * 1000);
+        const totalMonths = Math.max(2, Math.min(48, Math.round(spanMs / (30 * 24 * 60 * 60 * 1000))));
+        const monthFmt = (locale === 'uk' ? 'uk-UA' : 'en-US');
+        const damageHistory = Array.from({ length: totalMonths }, (_, i) => {
+          const d = new Date(fromMs + (spanMs * i) / (totalMonths - 1));
+          return {
+            month: d.toLocaleDateString(monthFmt, { year: '2-digit', month: 'short' }),
+            cumulative_damage: parseFloat((avgDamage * (i + 1) / totalMonths * 100).toFixed(2)),
+          };
+        });
 
-        const { goodmanData, rainflowCycles, snCurve, threshold_warnings } = mockFatigueData;
+        // Real threshold warnings derived from the user's actual fleet —
+        // turbines with >=60% cumulative damage or <5 years RUL.
+        const threshold_warnings = turbines
+          .filter((t) => t.cumulative_damage >= 0.6 || t.rul_years < 5)
+          .slice(0, 6)
+          .map((t) => {
+            const isCritDmg = t.cumulative_damage >= 0.6;
+            return {
+              turbine_id: t.turbine_id,
+              warning_type: isCritDmg ? t('fatigue.warning.high_damage_rate') : t('fatigue.warning.low_rul'),
+              current_value: isCritDmg ? t.cumulative_damage * 100 : t.rul_years,
+              threshold: isCritDmg ? 60 : 5,
+            };
+          });
+
+        const { goodmanData, rainflowCycles, snCurve } = mockFatigueData;
 
         setData({ damageDistribution, topDamagedTurbines, rulDistribution, damageHistory, goodmanData, rainflowCycles, snCurve, threshold_warnings });
       } catch (err) {
@@ -338,8 +363,9 @@ export default function FatiguePage() {
 
   // Filter warnings
   const filteredWarnings = data.threshold_warnings.filter((w) => {
-    if (filterBy === 'critical') return w.warning_type === 'Висока швидкість пошкодження';
-    if (filterBy === 'warning') return w.warning_type !== 'Висока швидкість пошкодження';
+    const isCritical = w.warning_type === t('fatigue.warning.high_damage_rate');
+    if (filterBy === 'critical') return isCritical;
+    if (filterBy === 'warning') return !isCritical;
     return true;
   });
 
