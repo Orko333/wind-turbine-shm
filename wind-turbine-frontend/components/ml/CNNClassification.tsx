@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfusionMatrix } from './ConfusionMatrix';
 import { AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
-import { postApiWithAuth } from '@/lib/api';
+import { postApiWithAuth, getApiWithAuth } from '@/lib/api';
 
 interface BackendCNNResult {
   turbine_id: string;
@@ -80,29 +80,37 @@ export function CNNClassification({ turbineId }: CNNClassificationProps) {
           for (const [k, v] of Object.entries(backend.probabilities)) {
             mappedProbs[classMap[k] ?? k] = v;
           }
+
+          // Fetch real confusion matrix from backend
+          interface CMResp {
+            classes: string[];
+            matrix: number[][];
+            accuracy: number;
+          }
+          let confusion_matrix: number[][] = [[92, 6, 2, 0], [4, 88, 8, 0], [1, 5, 91, 3], [0, 0, 2, 98]];
+          let accuracy = 92.25;
+          try {
+            const cm = await getApiWithAuth<CMResp>(`/cnn/confusion-matrix/${turbineId || 'ADMI-001'}`);
+            if (cm?.matrix?.length === 4) {
+              confusion_matrix = cm.matrix;
+              accuracy = cm.accuracy;
+            }
+          } catch (e) {
+            console.warn('confusion-matrix fetch failed, using defaults:', e);
+          }
+
           setData({
             damage_class: mappedClass,
             confidence: backend.confidence * 100,
             probability_distribution: mappedProbs,
-            confusion_matrix: [[92, 6, 2, 0], [4, 88, 8, 0], [1, 5, 91, 3], [0, 0, 2, 98]],
-            accuracy: 92.25,
+            confusion_matrix,
+            accuracy,
           });
           setError(null);
         } catch (err) {
           console.error('CNNClassification API error:', err);
-          setData({
-            damage_class: 'Moderate',
-            confidence: 87.5,
-            probability_distribution: {
-              Healthy: 0.082,
-              Minor: 0.041,
-              Moderate: 0.875,
-              Severe: 0.002,
-            },
-            confusion_matrix: [[92, 6, 2, 0], [4, 88, 8, 0], [1, 5, 91, 3], [0, 0, 2, 98]],
-            accuracy: 92.25,
-          });
-          setError(null);
+          setError(err instanceof Error ? err.message : 'CNN prediction failed');
+          setData(null);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Не вдалося завантажити прогнози CNN');

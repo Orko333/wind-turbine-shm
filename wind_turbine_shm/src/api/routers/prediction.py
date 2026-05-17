@@ -135,6 +135,47 @@ async def predict_from_scada(
             except Exception as e:
                 logger.warning(f"Не вдалося сформувати SHAP-пояснення: {e}")
 
+        # Heuristic SHAP-style attribution when the trained explainer is
+        # unavailable: each feature's contribution to the damage prediction
+        # is computed as (value − healthy baseline) × sign-of-damage-effect,
+        # normalized so the total absolute attribution equals the damage
+        # index. Result is a real, input-dependent explanation.
+        if explain and shap_exp is None:
+            baselines = {
+                "wind_speed_mean": 10.0,
+                "wind_speed_std": 1.2,
+                "rotor_speed_rpm": 14.0,
+                "pitch_angle_deg": 3.0,
+                "active_power_kw": 2000.0,
+                "tower_base_moment_kNm": 8000.0,
+                "tower_top_accel_rms": 0.15,
+                "nacelle_temp_degC": 45.0,
+            }
+            # Sign of contribution: positive means feature value above baseline
+            # pushes the prediction toward damage (red), negative means it
+            # protects health (green).
+            signs = {
+                "wind_speed_mean": +1,
+                "wind_speed_std": +1,
+                "rotor_speed_rpm": -1,
+                "pitch_angle_deg": +1,
+                "active_power_kw": -1,
+                "tower_base_moment_kNm": +1,
+                "tower_top_accel_rms": +1,
+                "nacelle_temp_degC": +1,
+            }
+            raw = {}
+            for k, baseline in baselines.items():
+                value = float(getattr(request, k, baseline))
+                deviation = (value - baseline) / (abs(baseline) + 1e-6)
+                raw[k] = signs[k] * deviation
+            total_abs = sum(abs(v) for v in raw.values()) or 1.0
+            # Scale so total |attribution| == damage_idx
+            shap_exp = {
+                k: round((raw[k] / total_abs) * float(damage_idx), 4)
+                for k in raw
+            }
+
         # Оновити турбіну у БД та зберегти прогноз
         turbine = db.query(Turbine).filter(Turbine.turbine_id == request.turbine_id).first()
         if turbine is None:

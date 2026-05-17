@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import maplibregl from 'maplibre-gl';
@@ -46,8 +46,54 @@ export function SystemMap({
   const [mapLoaded, setMapLoaded] = useState(false);
   const markers = useRef<maplibregl.Marker[]>([]);
 
-  const lat = center?.latitude ?? 51.5074;
-  const lng = center?.longitude ?? -0.1278;
+  // Known wind farm anchor coordinates for the demo locations. Backend
+  // returns turbine.location as a string ("North Field", "South Ridge", …)
+  // so we map those to real-world coordinates here. Unknown strings are
+  // hashed onto a stable pseudo-position so markers don't jitter on reload.
+  const LOCATION_COORDS: Record<string, { lat: number; lng: number }> = {
+    'North Field': { lat: 55.86, lng: -3.20 },
+    'South Ridge': { lat: 52.97, lng: -2.18 },
+    'East Hill':   { lat: 54.10, lng:  0.18 },
+    'West Coast':  { lat: 53.42, lng: -4.85 },
+  };
+
+  function hashString(s: string): number {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffffffff;
+    return h;
+  }
+
+  function locationToCoords(loc: string | null | undefined, turbineId: string): { lat: number; lng: number } {
+    if (loc && LOCATION_COORDS[loc]) {
+      // Offset multiple turbines at the same site slightly so they don't overlap.
+      const offset = (hashString(turbineId) % 100) / 5000;
+      const anchor = LOCATION_COORDS[loc];
+      return { lat: anchor.lat + offset, lng: anchor.lng + offset };
+    }
+    // Fallback: deterministic pseudo-coords scattered around the UK
+    const h = hashString(loc || turbineId || 'x');
+    return {
+      lat: 53 + ((h & 0xff) / 255) * 3,           // 53° .. 56°N
+      lng: -4 + (((h >> 8) & 0xff) / 255) * 4,    // -4° .. 0°E
+    };
+  }
+
+  // Center the map on the average of all turbine positions (or fall back
+  // to the UK midpoint if we don't have any yet).
+  const computedCenter = useMemo(() => {
+    if (center) return { lat: center.latitude, lng: center.longitude };
+    if (!turbines.length) return { lat: 54.0, lng: -2.5 };
+    let sumLat = 0, sumLng = 0, n = 0;
+    for (const t of turbines) {
+      const loc = ('location' in t ? (t.location as string | null) : null);
+      const { lat, lng } = locationToCoords(loc, t.turbine_id);
+      sumLat += lat; sumLng += lng; n += 1;
+    }
+    return { lat: sumLat / n, lng: sumLng / n };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [center, turbines]);
+  const lat = computedCenter.lat;
+  const lng = computedCenter.lng;
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -83,12 +129,16 @@ export function SystemMap({
     turbines.forEach((t) => {
       const rawLoc = 'location' in t ? t.location : null;
       const isCoord = rawLoc && typeof rawLoc === 'object' && 'latitude' in rawLoc && 'longitude' in rawLoc;
-      const latitude = isCoord
-        ? (rawLoc as { latitude: number; longitude: number }).latitude
-        : 51.5074 + Math.random() * 4 - 2;
-      const longitude = isCoord
-        ? (rawLoc as { latitude: number; longitude: number }).longitude
-        : -0.1278 + Math.random() * 4 - 2;
+      let latitude: number;
+      let longitude: number;
+      if (isCoord) {
+        latitude = (rawLoc as { latitude: number; longitude: number }).latitude;
+        longitude = (rawLoc as { latitude: number; longitude: number }).longitude;
+      } else {
+        const coords = locationToCoords(typeof rawLoc === 'string' ? rawLoc : null, t.turbine_id);
+        latitude = coords.lat;
+        longitude = coords.lng;
+      }
       if (!isFinite(latitude) || !isFinite(longitude)) return;
 
       const c = colors[t.status as keyof typeof colors] ?? colors.offline;
