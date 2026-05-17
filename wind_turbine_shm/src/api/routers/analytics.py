@@ -196,25 +196,33 @@ async def get_rul_trend(
         .all()
     )
 
-    if predictions:
-        return {
-            "turbine_id": turbine_id,
-            "predictions": [
-                {
-                    "timestamp": p.created_at.isoformat(),
-                    "rul_days": p.rul_days,
-                    "damage_index": p.damage_index,
-                    "alert_level": p.alert_level,
-                }
-                for p in reversed(predictions)
-            ],
-        }
+    from datetime import datetime, timedelta, timezone
 
-    # No recorded predictions — synthesise a trajectory.
+    # Use recorded predictions only if there are enough of them AND they span
+    # a meaningful time window. Otherwise the chart degenerates to a flat
+    # cluster of points all within a few minutes, which is what users see
+    # right after a backend restart wipes the DB and a handful of fresh
+    # /predict calls land in the same minute.
+    if len(predictions) >= 5:
+        span = (predictions[0].created_at - predictions[-1].created_at).total_seconds()
+        if span >= 3600:  # at least an hour of coverage
+            return {
+                "turbine_id": turbine_id,
+                "predictions": [
+                    {
+                        "timestamp": p.created_at.isoformat(),
+                        "rul_days": p.rul_days,
+                        "damage_index": p.damage_index,
+                        "alert_level": p.alert_level,
+                    }
+                    for p in reversed(predictions)
+                ],
+            }
+
+    # Few or temporally-clustered predictions — synthesise a trajectory.
     # Palmgren-Miner: damage grows linearly with cumulative load exposure.
     # We reconstruct the path by interpolating from 0 → current_damage across
     # the requested time window, assuming roughly steady operating duty.
-    from datetime import datetime, timedelta, timezone
 
     current_damage = float(turbine.cumulative_damage or 0.0)
     current_rul = float(turbine.rul_years or 20.0)
