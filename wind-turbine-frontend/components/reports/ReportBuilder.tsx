@@ -7,6 +7,7 @@ import { Input } from '../ui/input';
 import { useToast } from '../../hooks/useToast';
 import { X, Download } from 'lucide-react';
 import { useLocale } from '../../lib/i18n';
+import { postApiWithAuth, getApiWithAuth } from '../../lib/api';
 
 interface ReportMetric {
   id: string;
@@ -170,26 +171,118 @@ export function ReportBuilder() {
     []
   );
 
-  const handleGenerateReport = useCallback(() => {
+  const buildAndDownload = useCallback(
+    async (format: 'json' | 'csv') => {
+      // 1. Pull the fleet snapshot so the report contains real numbers,
+      //    not just the form metadata.
+      let fleet: Array<Record<string, unknown>> = [];
+      try {
+        const r = await getApiWithAuth<{ data: Array<Record<string, unknown>> }>(
+          '/turbines/?page=1&page_size=200'
+        );
+        fleet = r.data || [];
+      } catch (err) {
+        console.warn('Report fleet fetch failed; continuing with metadata-only report', err);
+      }
+
+      // 2. Tell the backend a report was generated (creates an
+      //    ExportRecord that shows up under History tab).
+      try {
+        await postApiWithAuth('/reports/generate', {
+          title: config.title,
+          report_type: config.reportType,
+          metrics: config.metrics.map((m) => m.id),
+          turbine_ids: fleet.map((t) => String(t.turbine_id ?? '')),
+          format,
+          date_from: config.dateFrom,
+          date_to: config.dateTo,
+        });
+      } catch (err) {
+        console.warn('Report record creation failed; downloading file anyway', err);
+      }
+
+      // 3. Build the file on the client and trigger a browser download.
+      const slug = (config.title || 'report').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const stamp = new Date().toISOString().slice(0, 10);
+      const filename = `${slug}-${stamp}.${format}`;
+      let blob: Blob;
+      if (format === 'json') {
+        const payload = {
+          title: config.title,
+          type: config.reportType,
+          description: config.description,
+          date_from: config.dateFrom,
+          date_to: config.dateTo,
+          generated_at: new Date().toISOString(),
+          metrics: config.metrics.map((m) => ({ id: m.id, name: m.label, type: m.type })),
+          fleet_snapshot: fleet,
+        };
+        blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      } else {
+        const headers = [
+          'turbine_id',
+          'name',
+          'status',
+          'rated_power_kw',
+          'power_kw',
+          'wind_speed',
+          'rul_years',
+          'cumulative_damage',
+        ];
+        const lines = [headers.join(',')];
+        for (const t of fleet) {
+          lines.push(
+            headers
+              .map((h) => {
+                const v = t[h];
+                if (v == null) return '';
+                return String(v).includes(',') ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+              })
+              .join(',')
+          );
+        }
+        blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+    [config]
+  );
+
+  const handleGenerateReport = useCallback(async () => {
     if (config.metrics.length === 0) {
       showError(L.metricRequired);
       return;
     }
-
     setIsGenerating(true);
-    setTimeout(() => {
+    try {
+      await buildAndDownload('json');
       success(`"${config.title}" ${L.reportGenerated}`);
+    } catch (err) {
+      console.error(err);
+      showError(L.metricRequired);
+    } finally {
       setIsGenerating(false);
-    }, 600);
-  }, [config, success, showError, L.metricRequired, L.reportGenerated]);
+    }
+  }, [config, success, showError, L.metricRequired, L.reportGenerated, buildAndDownload]);
 
-  const handleExportReport = useCallback(() => {
+  const handleExportReport = useCallback(async () => {
     setIsGenerating(true);
-    setTimeout(() => {
+    try {
+      await buildAndDownload('csv');
       success(L.reportExported);
+    } catch (err) {
+      console.error(err);
+    } finally {
       setIsGenerating(false);
-    }, 400);
-  }, [success, L.reportExported]);
+    }
+  }, [success, L.reportExported, buildAndDownload]);
 
   return (
     <div className="space-y-6">

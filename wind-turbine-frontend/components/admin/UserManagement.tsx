@@ -50,6 +50,10 @@ const UM_TEXT = {
     statusInactive: 'Inactive',
     statusSuspended: 'Suspended',
     requiredFields: 'Please fill in all required fields',
+    password: 'Password',
+    passwordPh: 'Min. 6 characters',
+    passwordHint: 'The user will use this to sign in. Share securely.',
+    passwordTooShort: 'Password must be at least 6 characters.',
     userUpdated: 'User updated',
     userCreated: 'User created',
     userDeleted: 'User deleted',
@@ -98,6 +102,10 @@ const UM_TEXT = {
     statusInactive: 'Неактивний',
     statusSuspended: 'Призупинений',
     requiredFields: "Будь ласка, заповніть усі обов'язкові поля",
+    password: 'Пароль',
+    passwordPh: 'Мін. 6 символів',
+    passwordHint: 'Користувач увійде з цим паролем. Передайте його в безпечний спосіб.',
+    passwordTooShort: 'Пароль має містити щонайменше 6 символів.',
     userUpdated: 'Користувача оновлено',
     userCreated: 'Користувача створено',
     userDeleted: 'Користувача видалено',
@@ -160,12 +168,13 @@ export function UserManagement() {
       .catch((e) => console.error('Load users failed:', e));
   }, []);
 
-  const [formData, setFormData] = useState<Partial<User>>({
+  const [formData, setFormData] = useState<Partial<User> & { password?: string }>({
     name: '',
     email: '',
     role: 'operator',
     status: 'active',
     mfaEnabled: false,
+    password: '',
   });
 
   const handleInputChange = useCallback((field: string, value: unknown) => {
@@ -178,6 +187,10 @@ export function UserManagement() {
   const handleSaveUser = useCallback(async () => {
     if (!formData.name || !formData.email) {
       showError(L.requiredFields);
+      return;
+    }
+    if (!isEditing && (!formData.password || formData.password.length < 6)) {
+      showError(L.passwordTooShort);
       return;
     }
 
@@ -198,11 +211,12 @@ export function UserManagement() {
           role: formData.role,
           status: formData.status,
           mfa_enabled: formData.mfaEnabled,
+          password: formData.password,
         });
         setUsers((prev) => [...prev, backendToView(created)]);
       }
       success(isEditing ? L.userUpdated : L.userCreated);
-      setFormData({ name: '', email: '', role: 'operator', status: 'active', mfaEnabled: false });
+      setFormData({ name: '', email: '', role: 'operator', status: 'active', mfaEnabled: false, password: '' });
       setIsAdding(false);
       setIsEditing(null);
     } catch (err) {
@@ -369,9 +383,25 @@ export function UserManagement() {
                   onChange={(e) => handleInputChange('email', e.target.value)}
                   placeholder={L.emailPh}
                   className="mt-2"
+                  disabled={Boolean(isEditing)}
                 />
               </div>
             </div>
+
+            {!isEditing && (
+              <div>
+                <label className="text-sm font-medium">{L.password}</label>
+                <Input
+                  type="password"
+                  value={formData.password || ''}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  placeholder={L.passwordPh}
+                  className="mt-2"
+                  autoComplete="new-password"
+                />
+                <p className="text-xs ink-3 mt-1">{L.passwordHint}</p>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>

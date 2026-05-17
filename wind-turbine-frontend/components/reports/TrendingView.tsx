@@ -251,26 +251,11 @@ export function TrendingView() {
         {/* Chart */}
         <div className="surface-2 rounded-lg p-4">
           <ResponsiveContainer width="100%" height={400}>
-            {selectedMetric === 'availability' || selectedMetric === 'efficiency' ? (
-              <LineChart data={sampleTrendData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="timestamp" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey={selectedMetric}
-                  stroke="hsl(38 90% 58%)"
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            ) : selectedMetric === 'damage' ? (
+            {selectedMetric === 'damage' ? (
               <BarChart data={sampleTrendData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="timestamp" />
-                <YAxis />
+                <YAxis domain={['dataMin', 'dataMax']} />
                 <Tooltip />
                 <Legend />
                 <Bar dataKey={selectedMetric} fill="hsl(6 72% 62%)" />
@@ -279,14 +264,21 @@ export function TrendingView() {
               <LineChart data={sampleTrendData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="timestamp" />
-                <YAxis />
-                <Tooltip />
+                <YAxis
+                  domain={[
+                    (dataMin: number) => Math.max(0, dataMin * 0.95),
+                    (dataMax: number) => dataMax * 1.05,
+                  ]}
+                  tickFormatter={(v: number) => v.toFixed(1)}
+                />
+                <Tooltip formatter={(v: number) => v.toFixed(2)} />
                 <Legend />
                 <Line
                   type="monotone"
                   dataKey={selectedMetric}
-                  stroke="hsl(168 60% 56%)"
-                  dot={false}
+                  stroke={selectedMetric === 'availability' || selectedMetric === 'efficiency' ? 'hsl(38 90% 58%)' : 'hsl(168 60% 56%)'}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
                   isAnimationActive={false}
                 />
               </LineChart>

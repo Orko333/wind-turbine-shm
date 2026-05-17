@@ -150,10 +150,42 @@ export function ExportHistory() {
     });
   }, []);
 
-  const handleDownload = useCallback((exportId: string) => {
-    void exportId;
-    success(L.downloadStarted);
-  }, [success, L.downloadStarted]);
+  const handleDownload = useCallback(
+    (exportId: string) => {
+      const rec = exports.find((e) => e.id === exportId);
+      if (!rec) {
+        showError(L.downloadFailed);
+        return;
+      }
+      // The backend stores the export's metadata but not a binary blob, so
+      // we re-materialize a JSON snapshot of that record and trigger a real
+      // browser download. The "Завантажити" button now actually saves a
+      // file instead of just showing a toast.
+      const payload = {
+        id: rec.id,
+        report_title: rec.reportTitle,
+        exported_at: rec.exportedAt,
+        exported_by: rec.exportedBy,
+        format: rec.format,
+        file_size: rec.fileSize,
+        turbine_count: rec.turbineCount,
+        date_range: rec.dateRange,
+        status: rec.status,
+      };
+      const slug = (rec.reportTitle || 'report').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${slug}-${rec.id.slice(0, 8)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      success(L.downloadStarted);
+    },
+    [exports, success, showError, L.downloadStarted, L.downloadFailed]
+  );
 
   const handleDelete = useCallback(async (exportId: string) => {
     setIsDeleting(true);
