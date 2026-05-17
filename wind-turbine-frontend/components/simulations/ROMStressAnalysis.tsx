@@ -56,13 +56,12 @@ export function ROMStressAnalysis() {
       const turbineId = listRes.data?.[0]?.turbine_id;
       if (!turbineId) throw new Error('No turbines available');
       await postApiWithAuth(`/simulation-advanced/rom/configure/${turbineId}`, {
-        n_elements: 20,
-        n_modes: config.modes,
-        height: config.height,
-        diameter: config.diameter,
+        turbine_id: turbineId,
+        tower_height: config.height,
+        diameter_base: config.diameter,
+        diameter_top: Math.max(1.0, config.diameter * 0.7),
         thickness: 0.05,
-        E: 210e9,
-        rho: 7850,
+        n_retained_modes: config.modes,
       });
       setIsConfigured(true);
       success('ROM налаштовано успішно');
