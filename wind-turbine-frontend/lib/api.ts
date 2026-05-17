@@ -48,11 +48,49 @@ async function fetchWithTimeout(
 }
 
 /**
+ * Try to silently refresh the access token from the httpOnly cookie session.
+ * Returns the new token, or null if the cookie session is also gone.
+ */
+let inflightRefresh: Promise<string | null> | null = null;
+async function refreshAccessToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  if (inflightRefresh) return inflightRefresh;
+  inflightRefresh = (async () => {
+    try {
+      const r = await fetch("/api/auth/refresh", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!r.ok) return null;
+      const data = (await r.json().catch(() => null)) as { access_token?: string } | null;
+      const token = data?.access_token;
+      if (token) {
+        try {
+          localStorage.setItem("auth_token", token);
+        } catch {
+          /* localStorage may be blocked */
+        }
+        return token;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      // clear after a tick so concurrent callers share the same refresh
+      setTimeout(() => {
+        inflightRefresh = null;
+      }, 0);
+    }
+  })();
+  return inflightRefresh;
+}
+
+/**
  * Core fetch function with помилка handling
  */
 async function fetchJson<T>(
   endpoint: string,
-  options: RequestInit & { timeout?: number } = {}
+  options: RequestInit & { timeout?: number; _retried?: boolean } = {}
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
@@ -64,6 +102,28 @@ async function fetchJson<T>(
         ...options.headers,
       },
     });
+
+    // Authenticated request returned 401 — try to refresh the token once
+    // and replay the request. This rescues users whose localStorage token
+    // expired but whose httpOnly cookie session is still valid (common
+    // after a backend restart that didn't rotate JWT_SECRET).
+    if (response.status === 401 && !options._retried) {
+      const headers = (options.headers || {}) as Record<string, string>;
+      const hadAuth = "Authorization" in headers;
+      if (hadAuth) {
+        const fresh = await refreshAccessToken();
+        if (fresh) {
+          return fetchJson<T>(endpoint, {
+            ...options,
+            _retried: true,
+            headers: {
+              ...headers,
+              Authorization: `Bearer ${fresh}`,
+            },
+          });
+        }
+      }
+    }
 
     const data = await response.json().catch(() => null);
 
