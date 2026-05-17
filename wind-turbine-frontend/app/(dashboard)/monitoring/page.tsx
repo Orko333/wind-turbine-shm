@@ -33,7 +33,6 @@ export default function MonitoringPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [isRealtime, setIsRealtime] = useState(false);
   const [lastTick, setLastTick] = useState<Date | null>(null);
-  const [streamRefresh, setStreamRefresh] = useState(0);
   const [selectedTurbineId, setSelectedTurbineId] = useState<string>('');
 
   // Load fleet to populate the selector — first turbine picked by default
@@ -45,12 +44,17 @@ export default function MonitoringPage() {
     }
   }, [turbines, selectedTurbineId]);
 
-  // Real snapshot: each tick of streamRefresh re-fetches via the queryKey
+  // Real snapshot — refetches every 2s while the stream is on. The queryKey
+  // stays stable per turbine, so React Query keeps showing the previous
+  // values while the next request is in flight (no blank flicker).
   const { data: snapshot } = useQuery({
-    queryKey: ['health-snapshot', selectedTurbineId, streamRefresh],
+    queryKey: ['health-snapshot', selectedTurbineId],
     queryFn: () => getApiWithAuth<HealthSnapshot>(`/health-snapshot/${selectedTurbineId}`),
     enabled: Boolean(selectedTurbineId),
     staleTime: 30_000,
+    refetchInterval: isRealtime ? 2_000 : false,
+    refetchIntervalInBackground: true,
+    placeholderData: (prev) => prev,
   });
 
   // Map snapshot → individual panel props
@@ -134,18 +138,15 @@ export default function MonitoringPage() {
     initializeData();
   }, [success, showError]);
 
-  // Realtime stream: there's no /api/monitoring/stream WebSocket in this
-  // deployment, so we simulate a live feed by ticking once per second while
-  // isRealtime is on. Each tick bumps a counter that the child panels can
-  // use as a remount key, and refreshes the displayed timestamp so the user
-  // sees the page is actually live.
+  // Realtime stream: useQuery's refetchInterval drives the data refresh
+  // (see queryKey above). We only need to tick the "last update" timestamp
+  // here so the user sees the page is alive.
   useEffect(() => {
-    if (!isRealtime) return;
+    if (!isRealtime) {
+      return;
+    }
     setLastTick(new Date());
-    const id = setInterval(() => {
-      setLastTick(new Date());
-      setStreamRefresh((n) => n + 1);
-    }, 2000);
+    const id = setInterval(() => setLastTick(new Date()), 2000);
     return () => clearInterval(id);
   }, [isRealtime]);
 
@@ -285,26 +286,27 @@ export default function MonitoringPage() {
           </div>
         </div>
 
-        {/* Sections — backed by /health-snapshot, key bumps on stream tick */}
+        {/* Sections — backed by /health-snapshot. Components keep their own
+            DOM across ticks so charts smoothly transition instead of flashing. */}
         <div className="space-y-12 mt-10">
           <OMAAnalysis
-            key={`oma-${selectedTurbineId}-${streamRefresh}`}
+            key={`oma-${selectedTurbineId}`}
             modes={omaModes.length ? omaModes : undefined}
             selectedMode={1}
             isLoading={isLoading || !snapshot}
           />
           <Spectrogram
-            key={`spec-${selectedTurbineId}-${streamRefresh}`}
+            key={`spec-${selectedTurbineId}`}
             frequencies={spectrogramFreqs.length ? spectrogramFreqs : undefined}
             isLoading={isLoading || !snapshot}
           />
           <BladeMonitoring
-            key={`blade-${selectedTurbineId}-${streamRefresh}`}
+            key={`blade-${selectedTurbineId}`}
             blades={blades.length ? blades : undefined}
             isLoading={isLoading || !snapshot}
           />
           <GeodeticMonitoring
-            key={`geo-${selectedTurbineId}-${streamRefresh}`}
+            key={`geo-${selectedTurbineId}`}
             data={geodeticData}
             isLoading={isLoading || !snapshot}
           />

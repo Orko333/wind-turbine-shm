@@ -46,6 +46,12 @@ async def get_health_snapshot(
     damage = float(t.cumulative_damage or 0.0)  # 0..1
     rated_kw = float(t.rated_power_kw or 4500.0)
 
+    # Small time-varying noise so successive ticks show realistic
+    # measurement jitter instead of a frozen identical snapshot. Tied to
+    # wall-clock seconds so adjacent samples are smoothly correlated.
+    now = datetime.now(timezone.utc)
+    t_sec = now.timestamp()
+
     # --- OMA frequencies — five expected modes for a 90m steel tower.
     # Healthy structure has nominal freqs; as damage grows the frequencies
     # drop and damping rises (classical signs of stiffness loss).
@@ -58,24 +64,24 @@ async def get_health_snapshot(
     ]
     freq_drop = damage * 0.15  # up to 15% drop at 100% damage
     damping_rise = damage * 0.05
-    oma_modes = [
-        {
+    oma_modes = []
+    for idx, (name, f, d) in enumerate(base_oma):
+        jitter_f = 0.004 * math.sin(t_sec / 7.0 + idx * 1.3)
+        jitter_d = 0.002 * math.sin(t_sec / 5.0 + idx * 2.1)
+        oma_modes.append({
             "mode": name,
-            "frequency": round(f * (1 - freq_drop), 3),
-            "damping":   round(d + damping_rise, 4),
-        }
-        for (name, f, d) in base_oma
-    ]
+            "frequency": round(f * (1 - freq_drop) + jitter_f, 3),
+            "damping":   round(d + damping_rise + jitter_d, 4),
+        })
 
     # --- Blade condition — erosion grows with damage age; ice from climate
     blade = {
-        "erosion_percent":   round(min(20.0, damage * 30.0), 2),
-        "ice_percent":       round(max(0.0, 1.5 - damage * 2.0), 2),
-        "imbalance_percent": round(damage * 12.0, 2),
+        "erosion_percent":   round(min(20.0, damage * 30.0) + 0.05 * math.sin(t_sec / 9.0), 2),
+        "ice_percent":       round(max(0.0, 1.5 - damage * 2.0 + 0.03 * math.sin(t_sec / 11.0)), 2),
+        "imbalance_percent": round(damage * 12.0 + 0.08 * math.sin(t_sec / 6.0), 2),
     }
 
     # --- Geodetic settlement — 36 months, accelerating with damage.
-    now = datetime.now(timezone.utc)
     geodetic = []
     base_rate = 0.04 + damage * 0.06  # mm per month
     accum = 0.0
@@ -90,10 +96,11 @@ async def get_health_snapshot(
         freq_hz = (i + 1) * 5
         # base 1/f noise + peaks at modes
         base = 30.0 + 15.0 * math.cos(i / 3.0)
+        bin_jitter = 0.4 * math.sin(t_sec / 3.0 + i * 0.7)
         peak = 0.0
         if i in peaks_at:
             peak = 60.0 * (1 - freq_drop)  # peaks weaken as damage grows
-        spectrogram.append({"frequency_hz": freq_hz, "amplitude": round(base + peak, 2)})
+        spectrogram.append({"frequency_hz": freq_hz, "amplitude": round(base + peak + bin_jitter, 2)})
 
     # --- Overall health score
     health_score = round(max(0.0, 1.0 - damage) * 100, 1)
