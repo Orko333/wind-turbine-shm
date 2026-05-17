@@ -165,32 +165,51 @@ export default function FatiguePage() {
         const result = await getApiWithAuth<{ data: TurbineItem[]; total: number }>('/turbines/?page=1&page_size=100');
         const turbines = result.data;
 
+        // Project each turbine's state forward (or backward) to the selected
+        // end date using a constant-rate Palmgren-Miner model. The date range
+        // therefore filters every section on this page, not just the trend
+        // chart: pick a future date to see what the fleet will look like;
+        // pick a past date to see what it looked like then.
+        const yearMs = 365.25 * 24 * 60 * 60 * 1000;
+        const yearsFromNow = (dateRange.to.getTime() - Date.now()) / yearMs;
+        const projected = turbines.map((tb) => {
+          const designLife = 20.0;
+          const ageYears = Math.max(0.5, designLife - (tb.rul_years ?? 12));
+          const damageRatePerYear = (tb.cumulative_damage ?? 0) / ageYears;
+          const dmg = Math.max(
+            0,
+            Math.min(1, (tb.cumulative_damage ?? 0) + damageRatePerYear * yearsFromNow)
+          );
+          const rul = Math.max(0, (tb.rul_years ?? 12) - yearsFromNow);
+          return { ...tb, projected_damage: dmg, projected_rul: rul };
+        });
+
         const damageDistribution = [
-          { range: '0-20%', count: turbines.filter((t) => t.cumulative_damage < 0.2).length },
-          { range: '20-40%', count: turbines.filter((t) => t.cumulative_damage >= 0.2 && t.cumulative_damage < 0.4).length },
-          { range: '40-60%', count: turbines.filter((t) => t.cumulative_damage >= 0.4 && t.cumulative_damage < 0.6).length },
-          { range: '60-80%', count: turbines.filter((t) => t.cumulative_damage >= 0.6 && t.cumulative_damage < 0.8).length },
-          { range: '80-100%', count: turbines.filter((t) => t.cumulative_damage >= 0.8).length },
+          { range: '0-20%', count: projected.filter((t) => t.projected_damage < 0.2).length },
+          { range: '20-40%', count: projected.filter((t) => t.projected_damage >= 0.2 && t.projected_damage < 0.4).length },
+          { range: '40-60%', count: projected.filter((t) => t.projected_damage >= 0.4 && t.projected_damage < 0.6).length },
+          { range: '60-80%', count: projected.filter((t) => t.projected_damage >= 0.6 && t.projected_damage < 0.8).length },
+          { range: '80-100%', count: projected.filter((t) => t.projected_damage >= 0.8).length },
         ];
 
-        const topDamagedTurbines = [...turbines]
-          .sort((a, b) => b.cumulative_damage - a.cumulative_damage)
+        const topDamagedTurbines = [...projected]
+          .sort((a, b) => b.projected_damage - a.projected_damage)
           .slice(0, 5)
           .map((tb) => ({
             turbine_id: tb.turbine_id,
-            damage_rate: tb.cumulative_damage,
-            rul_years: tb.rul_years,
-            health_score: Math.round((1 - tb.cumulative_damage) * 100),
+            damage_rate: tb.projected_damage,
+            rul_years: tb.projected_rul,
+            health_score: Math.round((1 - tb.projected_damage) * 100),
           }));
 
         const rulDistribution = [
-          { range: '0-5 years', turbines: turbines.filter((t) => t.rul_years < 5).length, criticality: 'high' as const },
-          { range: '5-10 years', turbines: turbines.filter((t) => t.rul_years >= 5 && t.rul_years < 10).length, criticality: 'medium' as const },
-          { range: '10-15 years', turbines: turbines.filter((t) => t.rul_years >= 10 && t.rul_years < 15).length, criticality: 'low' as const },
-          { range: '15+ years', turbines: turbines.filter((t) => t.rul_years >= 15).length, criticality: 'low' as const },
+          { range: '0-5 years', turbines: projected.filter((t) => t.projected_rul < 5).length, criticality: 'high' as const },
+          { range: '5-10 years', turbines: projected.filter((t) => t.projected_rul >= 5 && t.projected_rul < 10).length, criticality: 'medium' as const },
+          { range: '10-15 years', turbines: projected.filter((t) => t.projected_rul >= 10 && t.projected_rul < 15).length, criticality: 'low' as const },
+          { range: '15+ years', turbines: projected.filter((t) => t.projected_rul >= 15).length, criticality: 'low' as const },
         ];
 
-        const avgDamage = turbines.reduce((s, t) => s + t.cumulative_damage, 0) / turbines.length || 0;
+        const avgDamage = projected.reduce((s, t) => s + t.projected_damage, 0) / projected.length || 0;
         // Damage accumulation grows linearly with time across the selected
         // date range, so changing the period actually redraws the chart.
         const fromMs = dateRange.from.getTime();
@@ -200,30 +219,38 @@ export default function FatiguePage() {
         const monthFmt = (locale === 'uk' ? 'uk-UA' : 'en-US');
         const damageHistory = Array.from({ length: totalMonths }, (_, i) => {
           const d = new Date(fromMs + (spanMs * i) / (totalMonths - 1));
+          // Average projected damage at this point in the timeline.
+          const yearsAtPoint = (d.getTime() - Date.now()) / yearMs;
+          const avgAtPoint = projected.reduce((acc, t) => {
+            const designLife = 20.0;
+            const ageYears = Math.max(0.5, designLife - (t.rul_years ?? 12));
+            const rate = (t.cumulative_damage ?? 0) / ageYears;
+            return acc + Math.max(0, Math.min(1, (t.cumulative_damage ?? 0) + rate * yearsAtPoint));
+          }, 0) / projected.length;
           return {
             month: d.toLocaleDateString(monthFmt, { year: '2-digit', month: 'short' }),
-            cumulative_damage: parseFloat((avgDamage * (i + 1) / totalMonths * 100).toFixed(2)),
+            cumulative_damage: parseFloat((avgAtPoint * 100).toFixed(2)),
           };
         });
 
-        // Real threshold warnings derived from the user's actual fleet —
-        // turbines with >=60% cumulative damage or <5 years RUL.
-        const threshold_warnings = turbines
-          .filter((tb) => tb.cumulative_damage >= 0.6 || tb.rul_years < 5)
+        // Threshold warnings at the projected end-date — turbines whose
+        // damage will exceed 60% or RUL drops below 5 years by that date.
+        const threshold_warnings = projected
+          .filter((tb) => tb.projected_damage >= 0.6 || tb.projected_rul < 5)
           .slice(0, 6)
           .map((tb) => {
-            const isCritDmg = tb.cumulative_damage >= 0.6;
+            const isCritDmg = tb.projected_damage >= 0.6;
             return {
               turbine_id: tb.turbine_id,
               warning_type: isCritDmg ? t('fatigue.warning.high_damage_rate') : t('fatigue.warning.low_rul'),
-              current_value: isCritDmg ? tb.cumulative_damage * 100 : tb.rul_years,
+              current_value: isCritDmg ? tb.projected_damage * 100 : tb.projected_rul,
               threshold: isCritDmg ? 60 : 5,
             };
           });
 
         const goodmanData = computeGoodmanCurve();
         const snCurve = computeSNCurve();
-        const rainflowCycles = computeRainflowFromFleet(avgDamage, turbines.length);
+        const rainflowCycles = computeRainflowFromFleet(avgDamage, projected.length);
 
         setData({ damageDistribution, topDamagedTurbines, rulDistribution, damageHistory, goodmanData, rainflowCycles, snCurve, threshold_warnings });
       } catch (err) {
@@ -337,6 +364,9 @@ export default function FatiguePage() {
                   className="mono text-xs px-3 py-2 surface-1 hairline border rounded ink-1 outline-none focus:border-[hsl(var(--primary))]"
                 />
               </div>
+              <p className="text-[10px] ink-4 mt-2 max-w-[18rem]">
+                {t('fatigue.date_range.hint')}
+              </p>
             </div>
             <div>
               <p className="eyebrow mb-2">{t('common.filter')}</p>
