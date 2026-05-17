@@ -47,6 +47,7 @@ from .routers import (
     digital_twin,
     simulation_advanced,
     alerts,
+    user_storage,
 )
 from .schemas import HealthCheckResponse
 from ..database.config import init_db, get_db, SessionLocal
@@ -195,6 +196,7 @@ app.include_router(digital_twin.router)
 app.include_router(simulation_advanced.router)
 app.include_router(simulation.router)
 app.include_router(alerts.router)
+app.include_router(user_storage.router)
 
 
 @app.get("/health", response_model=HealthCheckResponse, tags=["system"])

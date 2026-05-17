@@ -3,13 +3,14 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRole } from '../../hooks/useRole';
 import { useToast } from '../../hooks/useToast';
-import { loadLocal, saveLocal } from '../../lib/localStore';
+import { fetchUserStorage, saveUserStorage } from '../../lib/userStorage';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { AlertCircle, Lock, Plus, Trash2 } from 'lucide-react';
 
-const STORAGE_KEY = 'config:notification-rules';
+const NS = 'config';
+const KEY = 'notification-rules';
 
 interface NotificationRule {
   id: string;
@@ -66,11 +67,12 @@ export function NotificationRules() {
   const [originalRules, setOriginalRules] = useState<NotificationRule[]>(defaultRules);
 
   useEffect(() => {
-    const stored = loadLocal<NotificationRule[]>(STORAGE_KEY);
-    if (stored && Array.isArray(stored)) {
-      setRules(stored);
-      setOriginalRules(stored);
-    }
+    fetchUserStorage<NotificationRule[]>(NS, KEY).then((stored) => {
+      if (stored && Array.isArray(stored)) {
+        setRules(stored);
+        setOriginalRules(stored);
+      }
+    });
   }, []);
 
   const handleAddRule = useCallback(() => {
@@ -125,7 +127,7 @@ export function NotificationRules() {
     []
   );
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!canEdit) {
       showError('У вас немає прав на редагування правил сповіщень');
       return;
@@ -133,7 +135,7 @@ export function NotificationRules() {
 
     setIsSaving(true);
     try {
-      saveLocal(STORAGE_KEY, rules);
+      await saveUserStorage(NS, KEY, rules);
       setOriginalRules(rules);
       success('Правила сповіщень збережено');
       setIsEditing(false);

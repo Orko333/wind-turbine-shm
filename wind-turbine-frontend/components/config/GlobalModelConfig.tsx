@@ -3,13 +3,14 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRole } from '../../hooks/useRole';
 import { useToast } from '../../hooks/useToast';
-import { loadLocal, saveLocal } from '../../lib/localStore';
+import { fetchUserStorage, saveUserStorage } from '../../lib/userStorage';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { AlertCircle, Lock } from 'lucide-react';
 
-const STORAGE_KEY = 'config:model-settings';
+const NS = 'config';
+const KEY = 'model-settings';
 
 interface ModelConfigData {
   cnn_confidence_threshold: number;
@@ -43,13 +44,14 @@ export function GlobalModelConfig() {
   const [formData, setFormData] = useState<ModelConfigData>(defaultData);
   const [originalData, setOriginalData] = useState<ModelConfigData>(defaultData);
 
-  // Hydrate from localStorage on mount
+  // Hydrate from backend on mount (with localStorage fallback inside helper)
   useEffect(() => {
-    const stored = loadLocal<ModelConfigData>(STORAGE_KEY);
-    if (stored) {
-      setFormData({ ...defaultData, ...stored });
-      setOriginalData({ ...defaultData, ...stored });
-    }
+    fetchUserStorage<ModelConfigData>(NS, KEY).then((stored) => {
+      if (stored) {
+        setFormData({ ...defaultData, ...stored });
+        setOriginalData({ ...defaultData, ...stored });
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -70,7 +72,7 @@ export function GlobalModelConfig() {
     []
   );
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!canEdit) {
       showError('У вас немає прав на редагування конфігурації моделей');
       return;
@@ -78,7 +80,7 @@ export function GlobalModelConfig() {
 
     setIsSaving(true);
     try {
-      saveLocal(STORAGE_KEY, formData);
+      await saveUserStorage(NS, KEY, formData);
       setOriginalData(formData);
       success('Конфігурацію моделей збережено');
       setIsEditing(false);

@@ -3,14 +3,15 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRole } from '../../hooks/useRole';
 import { useToast } from '../../hooks/useToast';
-import { loadLocal, saveLocal } from '../../lib/localStore';
+import { fetchUserStorage, saveUserStorage } from '../../lib/userStorage';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { AlertCircle, Lock, Eye, EyeOff } from 'lucide-react';
 import { useLocale } from '../../lib/i18n';
 
-const STORAGE_KEY = 'config:scada-credentials';
+const NS = 'config';
+const KEY = 'scada-credentials';
 
 interface CredentialsData {
   scada_api_url: string;
@@ -52,11 +53,12 @@ export function SCADACredentials() {
   const [originalData, setOriginalData] = useState<CredentialsData>(defaultData);
 
   useEffect(() => {
-    const stored = loadLocal<CredentialsData>(STORAGE_KEY);
-    if (stored) {
-      setFormData({ ...defaultData, ...stored });
-      setOriginalData({ ...defaultData, ...stored });
-    }
+    fetchUserStorage<CredentialsData>(NS, KEY).then((stored) => {
+      if (stored) {
+        setFormData({ ...defaultData, ...stored });
+        setOriginalData({ ...defaultData, ...stored });
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -77,7 +79,7 @@ export function SCADACredentials() {
     }));
   }, []);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!canEdit) {
       showError(locale === 'uk' ? 'У вас немає прав для редагування облікових даних SCADA' : 'You do not have permission to edit SCADA credentials');
       return;
@@ -85,7 +87,7 @@ export function SCADACredentials() {
 
     setIsSaving(true);
     try {
-      saveLocal(STORAGE_KEY, formData);
+      await saveUserStorage(NS, KEY, formData);
       setOriginalData(formData);
       success(locale === 'uk' ? 'Облікові дані SCADA успішно збережено' : 'SCADA credentials saved successfully');
       setIsEditing(false);
