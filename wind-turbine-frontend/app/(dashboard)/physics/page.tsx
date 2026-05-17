@@ -19,8 +19,9 @@ import { OffshoreLoading } from '@/components/physics/OffshoreLoading';
 import { WakeEffects } from '@/components/physics/WakeEffects';
 import { useT } from '@/lib/i18n';
 import { getApiWithAuth, postApiWithAuth } from '@/lib/api';
+import { useGlobalConfig } from '@/hooks/useGlobalConfig';
 
-type ModelType = '2.5MW' | '3.0MW';
+type ModelType = '2.5MW' | '3.0MW' | 'custom';
 
 interface TurbineListItem { turbine_id: string }
 interface TurbineListResponse { data: TurbineListItem[]; total: number }
@@ -28,10 +29,12 @@ interface BackendPowerCurvePoint { wind_speed: number; power_kw: number }
 interface BackendWindShear { wind_speed_at_hub: number; wind_shear_exponent: number }
 interface BackendOffshore { total_horizontal_load_kn: number }
 
-const MODEL_CONFIGS: Record<ModelType, {
+interface ModelConfig {
   rotor_diameter: number; tower_height: number; rated_power_kw: number;
   rated_wind_speed: number; cut_in_speed: number; cut_out_speed: number;
-}> = {
+}
+
+const PRESET_CONFIGS: Record<'2.5MW' | '3.0MW', ModelConfig> = {
   '2.5MW': { rotor_diameter: 96, tower_height: 90, rated_power_kw: 2500, rated_wind_speed: 12.5, cut_in_speed: 3.5, cut_out_speed: 25 },
   '3.0MW': { rotor_diameter: 112, tower_height: 100, rated_power_kw: 3000, rated_wind_speed: 12.5, cut_in_speed: 3.5, cut_out_speed: 25 },
 };
@@ -66,9 +69,8 @@ interface PhysicsData {
 
 // Physics-derived (not mock): blade-element momentum theory thrust + tower moment
 // across the operating envelope. Deterministic from rotor diameter and rated wind speed.
-function computeThrustMoment(rotorDiameter: number, ratedWindSpeed: number, cutOutSpeed: number, cutInSpeed: number): Array<{ wind_speed: number; thrust_kn: number; moment_knm: number }> {
+function computeThrustMoment(rotorDiameter: number, ratedWindSpeed: number, cutOutSpeed: number, cutInSpeed: number, rho = 1.225): Array<{ wind_speed: number; thrust_kn: number; moment_knm: number }> {
   const rotorArea = Math.PI * Math.pow(rotorDiameter / 2, 2);
-  const rho = 1.225;
   return Array.from({ length: 45 }, (_, i) => {
     const windSpeed = 3 + i * 0.5;
     let thrust = 0;
@@ -108,7 +110,9 @@ function computeWindFarmLayout(rotorDiameter: number): Array<{ x: number; y: num
 export default function PhysicsPage() {
   const t = useT();
   const { success, error: showError } = useToast();
-  const [selectedModel, setSelectedModel] = useState<ModelType>('2.5MW');
+  const { turbineSettings } = useGlobalConfig();
+  const [selectedModel, setSelectedModel] = useState<ModelType>('custom');
+  const [customConfig, setCustomConfig] = useState<ModelConfig | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [windDirection, setWindDirection] = useState(270);
@@ -125,7 +129,22 @@ export default function PhysicsPage() {
         const turbineId = listRes.data?.[0]?.turbine_id;
         if (!turbineId) throw new Error('No turbines available');
 
-        const cfg = MODEL_CONFIGS[selectedModel];
+        // 2. Resolve config: for 'custom' always fetch latest saved settings
+        let cfg: ModelConfig;
+        if (selectedModel === 'custom') {
+          const detail = await getApiWithAuth<Record<string, unknown>>(`/turbines/${turbineId}`);
+          cfg = {
+            rated_power_kw: (detail.rated_power_kw as number) || 2500,
+            rotor_diameter: (detail.rotor_diameter as number) || 96,
+            tower_height: (detail.tower_height as number) || 90,
+            rated_wind_speed: 12.5,
+            cut_in_speed: (detail.cut_in_speed as number) || 3.5,
+            cut_out_speed: (detail.cut_out_speed as number) || 25,
+          };
+          setCustomConfig(cfg);
+        } else {
+          cfg = PRESET_CONFIGS[selectedModel as '2.5MW' | '3.0MW'];
+        }
 
         // 2. Configure aerodynamic model (in-memory on server)
         await postApiWithAuth(`/physics/configure/${turbineId}`, {
@@ -153,13 +172,16 @@ export default function PhysicsPage() {
           return { height: h, wind_speed: hubSpeed * Math.pow(h / cfg.tower_height, alpha) };
         });
 
-        // 5. Offshore loading
+        // 5. Offshore loading — scale wave/current with rated power
+        const waveHeight = cfg.rated_power_kw >= 3000 ? 3.0 : cfg.rated_power_kw >= 2750 ? 2.75 : 2.5;
+        const currentVelocity = cfg.rated_power_kw >= 3000 ? 0.55 : 0.45;
+        const waterDepth = cfg.rated_power_kw >= 3000 ? 35 : 32;
         const offRaw = await postApiWithAuth<BackendOffshore>('/physics/offshore-loading', {
           turbine_id: turbineId,
-          significant_wave_height: selectedModel === '2.5MW' ? 2.5 : 3.0,
+          significant_wave_height: waveHeight,
           peak_frequency: 0.1,
-          current_velocity: selectedModel === '2.5MW' ? 0.45 : 0.55,
-          water_depth: selectedModel === '2.5MW' ? 32 : 35,
+          current_velocity: currentVelocity,
+          water_depth: waterDepth,
         });
 
         if (powerCurve.length === 0) {
@@ -168,16 +190,19 @@ export default function PhysicsPage() {
         setData({
           powerCurve,
           windShear,
-          thrustMoment: computeThrustMoment(cfg.rotor_diameter, cfg.rated_wind_speed, cfg.cut_out_speed, cfg.cut_in_speed),
+          thrustMoment: computeThrustMoment(cfg.rotor_diameter, cfg.rated_wind_speed, cfg.cut_out_speed, cfg.cut_in_speed, turbineSettings.air_density),
           offshoreLoading: {
-            wave_height: selectedModel === '2.5MW' ? 2.5 : 3.0,
-            current_speed: selectedModel === '2.5MW' ? 0.45 : 0.55,
-            water_depth: selectedModel === '2.5MW' ? 32 : 35,
+            wave_height: waveHeight,
+            current_speed: currentVelocity,
+            water_depth: waterDepth,
             total_load: Math.round(offRaw.total_horizontal_load_kn),
           },
           windFarm: computeWindFarmLayout(cfg.rotor_diameter),
         });
-        success(t('physics.loaded_data', { model: selectedModel }));
+        const label = selectedModel === 'custom'
+          ? `${(cfg.rated_power_kw / 1000).toFixed(1)} MW`
+          : selectedModel;
+        success(t('physics.loaded_data', { model: label }));
       } catch (err) {
         console.error('Physics API error:', err);
         showError(err instanceof Error ? err.message : 'Physics load failed');
@@ -187,7 +212,8 @@ export default function PhysicsPage() {
     };
 
     loadData();
-  }, [selectedModel, refreshKey, success, showError, t]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedModel, refreshKey, turbineSettings.air_density]);
 
   // Export дані as CSV
   const handleExportData = useCallback(async () => {
@@ -216,8 +242,9 @@ export default function PhysicsPage() {
     }
   }, [data, selectedModel, success, showError, t]);
 
-  // Refresh дані
+  // Refresh дані — also re-fetch turbine settings
   const handleRefresh = useCallback(() => {
+    setCustomConfig(null);
     setRefreshKey(k => k + 1);
   }, []);
 
@@ -245,10 +272,15 @@ export default function PhysicsPage() {
                   {t('physics.turbine_model')}
                 </label>
                 <Select value={selectedModel} onValueChange={(value) => setSelectedModel(value as ModelType)}>
-                  <SelectTrigger className="w-full md:w-48">
+                  <SelectTrigger className="w-full md:w-56">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    {customConfig && (
+                      <SelectItem value="custom">
+                        {`Custom (${(customConfig.rated_power_kw / 1000).toFixed(1)} MW)`}
+                      </SelectItem>
+                    )}
                     <SelectItem value="2.5MW">{t('physics.model_2_5_mw')}</SelectItem>
                     <SelectItem value="3.0MW">{t('physics.model_3_0_mw')}</SelectItem>
                   </SelectContent>
@@ -272,6 +304,17 @@ export default function PhysicsPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Air density badge */}
+            <div className="flex items-center gap-2 px-3 py-2 surface-2 border hairline rounded-lg text-xs">
+              <span className="ink-3">ρ</span>
+              <span className={`font-mono font-semibold ${Math.abs(turbineSettings.air_density - 1.225) > 0.005 ? 'signal-warn' : 'ink-2'}`}>
+                {turbineSettings.air_density.toFixed(3)} kg/m³
+              </span>
+              {Math.abs(turbineSettings.air_density - 1.225) > 0.005 && (
+                <span className="signal-warn text-xs">{t('physics.non_standard_density')}</span>
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -304,11 +347,13 @@ export default function PhysicsPage() {
               <PowerCurve
                 data={data.powerCurve}
                 model={selectedModel}
+                ratedPowerKw={selectedModel === 'custom' ? customConfig?.rated_power_kw : undefined}
                 isLoading={isLoading}
               />
               <WindShear
                 data={data.windShear}
                 model={selectedModel}
+                hubHeightM={selectedModel === 'custom' ? customConfig?.tower_height : undefined}
                 isLoading={isLoading}
               />
             </div>
@@ -318,6 +363,8 @@ export default function PhysicsPage() {
               <ThrustMoment
                 data={data.thrustMoment}
                 model={selectedModel}
+                rotorDiameterM={selectedModel === 'custom' ? customConfig?.rotor_diameter : undefined}
+                airDensity={turbineSettings.air_density}
                 isLoading={isLoading}
               />
             </div>
@@ -342,9 +389,27 @@ export default function PhysicsPage() {
         {/* Model Comparison Info */}
         <Card className="p-6 surface-2 hairline">
           <h3 className="text-lg font-semibold mb-4">{t('physics.model_comparison')}</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <p className="font-medium ink-1 mb-3">{t('physics.model_2_5_mw')}</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {customConfig && (
+              <div className={selectedModel === 'custom' ? 'ring-1 ring-amber-400 rounded-lg p-3 -m-3' : ''}>
+                <p className="font-medium signal-warn mb-3">
+                  {`Custom (${(customConfig.rated_power_kw / 1000).toFixed(1)} MW)`}
+                  {selectedModel === 'custom' && <span className="ml-2 text-xs ink-3">← active</span>}
+                </p>
+                <ul className="space-y-2 text-sm ink-2">
+                  <li>{t('physics.rotor_diameter')}: {customConfig.rotor_diameter} m</li>
+                  <li>{t('physics.rated_power')}: {(customConfig.rated_power_kw / 1000).toFixed(2)} MW</li>
+                  <li>{t('physics.hub_height')}: {customConfig.tower_height} m</li>
+                  <li>{t('physics.cut_in')}: {customConfig.cut_in_speed} m/s</li>
+                  <li>{t('physics.cut_out')}: {customConfig.cut_out_speed} m/s</li>
+                </ul>
+              </div>
+            )}
+            <div className={selectedModel === '2.5MW' ? 'ring-1 ring-amber-400 rounded-lg p-3 -m-3' : ''}>
+              <p className="font-medium ink-1 mb-3">
+                {t('physics.model_2_5_mw')}
+                {selectedModel === '2.5MW' && <span className="ml-2 text-xs ink-3">← active</span>}
+              </p>
               <ul className="space-y-2 text-sm ink-2">
                 <li>{t('physics.rotor_diameter')}: 96 m</li>
                 <li>{t('physics.rated_power')}: 2.5 MW</li>
@@ -352,8 +417,11 @@ export default function PhysicsPage() {
                 <li>{t('physics.rated_wind')}: 12.5 m/s</li>
               </ul>
             </div>
-            <div>
-              <p className="font-medium signal-live mb-3">{t('physics.model_3_0_mw')}</p>
+            <div className={selectedModel === '3.0MW' ? 'ring-1 ring-amber-400 rounded-lg p-3 -m-3' : ''}>
+              <p className="font-medium signal-live mb-3">
+                {t('physics.model_3_0_mw')}
+                {selectedModel === '3.0MW' && <span className="ml-2 text-xs ink-3">← active</span>}
+              </p>
               <ul className="space-y-2 text-sm ink-2">
                 <li>{t('physics.rotor_diameter')}: 112 m</li>
                 <li>{t('physics.rated_power')}: 3.0 MW</li>

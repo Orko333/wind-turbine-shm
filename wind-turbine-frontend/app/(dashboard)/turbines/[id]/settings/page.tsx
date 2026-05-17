@@ -11,8 +11,9 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Lock } from 'lucide-react';
+import { AlertCircle, Lock, Zap, Wind, Activity, Clock } from 'lucide-react';
 import { useT } from '@/lib/i18n';
+import { useGlobalConfig } from '@/hooks/useGlobalConfig';
 
 interface SettingsForm {
   tower_height: number;
@@ -62,6 +63,7 @@ function cacheLocalSettings(id: string, data: SettingsForm) {
 
 export default function SettingsPage() {
   const t = useT();
+  const { turbineSettings: globalCfg } = useGlobalConfig();
   const params = useParams();
   const turbineId = params.id as string;
   const { success, error: showError } = useToast();
@@ -257,8 +259,82 @@ export default function SettingsPage() {
     );
   }
 
+  const utilization = turbine
+    ? Math.min(100, ((turbine.power_kw ?? 0) / Math.max(1, turbine.rated_power_kw ?? 1)) * 100)
+    : 0;
+
   return (
     <div className="space-y-6">
+      {/* Live Effect Card — updates immediately after Save */}
+      {turbine && (
+        <Card className="p-5 border hairline surface-2">
+          <p className="text-xs font-semibold ink-3 uppercase tracking-widest mb-4">
+            {t('turbines.live_effect')}
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 text-xs ink-3">
+                <Zap className="w-3.5 h-3.5 signal-warn" />
+                {t('turbines.power_output')}
+              </div>
+              <p className="text-xl font-bold ink-1">
+                {Math.round(turbine.power_kw ?? 0).toLocaleString()} <span className="text-xs font-normal ink-3">kW</span>
+              </p>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                  style={{ width: `${utilization.toFixed(1)}%` }}
+                />
+              </div>
+              <p className="text-xs ink-3">{utilization.toFixed(1)}% {t('turbines.of_rated', { n: Math.round(turbine.rated_power_kw ?? 0).toLocaleString() })}</p>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 text-xs ink-3">
+                <Wind className="w-3.5 h-3.5 signal-live" />
+                {t('turbines.wind_speed')}
+              </div>
+              <p className="text-xl font-bold ink-1">
+                {(turbine.wind_speed ?? 0).toFixed(1)} <span className="text-xs font-normal ink-3">m/s</span>
+              </p>
+              <p className="text-xs ink-3">
+                {t('turbines.envelope')}: {formData.cut_in_speed}–{formData.cut_out_speed} m/s
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 text-xs ink-3">
+                <Activity className="w-3.5 h-3.5 signal-crit" />
+                {t('turbines.damage_rate_label')}
+              </div>
+              <p className="text-xl font-bold ink-1">
+                {(turbine.damage_rate ?? 0).toFixed(2)} <span className="text-xs font-normal ink-3">%/yr</span>
+              </p>
+              <p className="text-xs ink-3">
+                {(((turbine as unknown as Record<string, unknown>).cumulative_damage as number ?? 0) * 100).toFixed(1)}%
+                {' '}≈{' '}
+                {((((turbine as unknown as Record<string, unknown>).cumulative_damage as number ?? 0) * globalCfg.design_life_years)).toFixed(1)}
+                {t('turbines.of_design_life', { n: globalCfg.design_life_years })}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 text-xs ink-3">
+                <Clock className="w-3.5 h-3.5 ink-2" />
+                {t('turbines.rul')}
+              </div>
+              <p className="text-xl font-bold ink-1">
+                {(turbine.rul_years ?? 0).toFixed(1)} <span className="text-xs font-normal ink-3">yr</span>
+              </p>
+              <p className="text-xs ink-3">
+                {t('turbines.safety_factor_label')}: ×{globalCfg.safety_factor.toFixed(2)}
+                {' '}({t('config.tab.turbine')})
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {!canEdit && (
         <div className="p-4 rounded-lg surface-2 border hairline flex gap-3">
           <Lock className="w-5 h-5 signal-live flex-shrink-0 mt-0.5" />

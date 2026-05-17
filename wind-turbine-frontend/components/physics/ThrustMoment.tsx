@@ -22,13 +22,15 @@ interface ThrustMomentProps {
     thrust_kn: number;
     moment_knm: number;
   }>;
-  model?: '2.5MW' | '3.0MW';
+  model?: string;
+  rotorDiameterM?: number;
+  airDensity?: number;
   isLoading?: boolean;
 }
 
-export function ThrustMoment({ data = [], model = '2.5MW', isLoading }: ThrustMomentProps) {
+export function ThrustMoment({ data = [], model = '2.5MW', rotorDiameterM, airDensity, isLoading }: ThrustMomentProps) {
   const t = useT();
-  const rotorDiameter = model === '3.0MW' ? 112 : 96; // метри
+  const rotorDiameter = rotorDiameterM ?? (model === '3.0MW' ? 112 : 96); // метри
   const rotorArea = (Math.PI * (rotorDiameter / 2) ** 2) / 1000; // км^2
 
   // Генерація синтетичної обвідної навантажень, якщо дані не надано
@@ -39,7 +41,7 @@ export function ThrustMoment({ data = [], model = '2.5MW', isLoading }: ThrustMo
 
     // Тяга: T = 0.5 * rho * A * Cp * v^2
     // Момент: M = T * R (приблизно)
-    const rho = 1.225; // густина повітря
+    const rho = airDensity ?? 1.225; // густина повітря (з глобальних налаштувань)
     const result = [];
 
     for (let v = 3; v <= 25; v += 0.5) {
