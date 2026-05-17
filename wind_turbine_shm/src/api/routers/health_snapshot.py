@@ -45,6 +45,8 @@ async def get_health_snapshot(
 
     damage = float(t.cumulative_damage or 0.0)  # 0..1
     rated_kw = float(t.rated_power_kw or 4500.0)
+    tower_h = float(t.tower_height or 90.0)
+    rotor_d = float(t.rotor_diameter or 96.0)
 
     # Small time-varying noise so successive ticks show realistic
     # measurement jitter instead of a frozen identical snapshot. Tied to
@@ -52,15 +54,19 @@ async def get_health_snapshot(
     now = datetime.now(timezone.utc)
     t_sec = now.timestamp()
 
-    # --- OMA frequencies — five expected modes for a 90m steel tower.
-    # Healthy structure has nominal freqs; as damage grows the frequencies
-    # drop and damping rises (classical signs of stiffness loss).
+    # --- OMA frequencies — physics-based scaling from user settings.
+    # Tower natural frequency ∝ 1/H² (cantilever beam theory, same EI/ρ).
+    # Blade first mode ∝ 1/R (Euler-Bernoulli beam, same cross-section).
+    # Baseline: 90m tower, 96m rotor diameter.
+    tower_freq_scale = (90.0 / tower_h) ** 2
+    blade_freq_scale = 96.0 / rotor_d
+
     base_oma = [
-        ("1st Flapwise", 0.65, 0.08),
-        ("1st Edgewise", 1.92, 0.05),
-        ("2nd Flapwise", 2.15, 0.12),
-        ("Tower 1st",    0.35, 0.02),
-        ("Tower 2nd",    1.15, 0.03),
+        ("1st Flapwise", 0.65 * blade_freq_scale, 0.08),
+        ("1st Edgewise", 1.92 * blade_freq_scale, 0.05),
+        ("2nd Flapwise", 2.15 * blade_freq_scale, 0.12),
+        ("Tower 1st",    0.35 * tower_freq_scale, 0.02),
+        ("Tower 2nd",    1.15 * tower_freq_scale, 0.03),
     ]
     freq_drop = damage * 0.15  # up to 15% drop at 100% damage
     damping_rise = damage * 0.05
@@ -115,6 +121,8 @@ async def get_health_snapshot(
         "computed_at": now.isoformat(),
         "cumulative_damage": damage,
         "rated_power_kw": rated_kw,
+        "tower_height": tower_h,
+        "rotor_diameter": rotor_d,
         "health_score": health_score,
         "status": status,
         "oma_modes": oma_modes,

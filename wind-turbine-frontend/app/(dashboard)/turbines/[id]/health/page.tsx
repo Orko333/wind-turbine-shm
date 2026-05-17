@@ -27,6 +27,8 @@ interface HealthSnapshot {
   cumulative_damage: number;
   health_score: number;
   status: string;
+  tower_height: number;
+  rotor_diameter: number;
   oma_modes: Array<{ mode: string; frequency: number; damping: number }>;
   blade_condition: { erosion_percent: number; ice_percent: number; imbalance_percent: number };
   geodetic_settlement: Array<{ month: number; settlement_mm: number }>;
@@ -93,7 +95,17 @@ export default function HealthPage() {
     <div className="space-y-6">
       {/* OMA Frequencies */}
       <Card className="p-6">
-        <h3 className="font-semibold mb-4">{t('turbines.oma_title')}</h3>
+        <div className="mb-4">
+          <h3 className="font-semibold">{t('turbines.oma_title')}</h3>
+          {snapshot && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {t('turbines.oma_settings_note', {
+                h: snapshot.tower_height,
+                d: snapshot.rotor_diameter,
+              })}
+            </p>
+          )}
+        </div>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={omaChartData}>
             <CartesianGrid strokeDasharray="3 3" />

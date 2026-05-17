@@ -32,6 +32,14 @@ export default function VisualizationPage() {
 
     const mountElement = mountRef.current;
 
+    // Scale geometry from turbine settings:
+    // - Tower: baseline 90 m → 40 scene units; scale proportionally
+    // - Blades: baseline 96 m rotor diameter → 12.5 unit half-length
+    const towerScale = (turbine.tower_height || 90) / 90;
+    const bladeScale = (turbine.rotor_diameter || 96) / 96;
+    const towerH = 40 * towerScale;
+    const bladeHalfLen = 12.5 * bladeScale;
+
     // Scene setup
     const width = mountElement.clientWidth;
     const height = mountElement.clientHeight;
@@ -41,8 +49,10 @@ export default function VisualizationPage() {
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-    camera.position.set(50, 40, 50);
-    camera.lookAt(0, 20, 0);
+    // Position camera relative to scaled tower so it always frames the turbine properly
+    const camDist = 50 * towerScale;
+    camera.position.set(camDist, towerH * 0.9, camDist);
+    camera.lookAt(0, towerH * 0.5, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
@@ -63,28 +73,29 @@ export default function VisualizationPage() {
 
     // Tower (cylinder) - kept simple to avoid BufferGeometry color-attribute
     // edge cases that previously crashed the page on certain three.js builds.
-    const towerGeometry = new THREE.CylinderGeometry(3, 3.5, 40, 32);
+    const towerGeometry = new THREE.CylinderGeometry(3 * towerScale, 3.5 * towerScale, towerH, 32);
     const towerMaterial = new THREE.MeshStandardMaterial({
       color: 0x52473b, // warm graphite / steel tone
       metalness: 0.5,
       roughness: 0.55,
     });
     const tower = new THREE.Mesh(towerGeometry, towerMaterial);
-    tower.position.y = 20;
+    tower.position.y = towerH / 2;
     tower.castShadow = true;
     tower.receiveShadow = true;
     towerRef.current = tower;
     scene.add(tower);
 
     // Nacelle (box on top)
-    const nacelleGeometry = new THREE.BoxGeometry(8, 4, 6);
+    const nacelleH = 4 * towerScale;
+    const nacelleGeometry = new THREE.BoxGeometry(8 * towerScale, nacelleH, 6 * towerScale);
     const nacelleMaterial = new THREE.MeshStandardMaterial({
       color: 0x1f1d1c, // surface-2
       metalness: 0.4,
       roughness: 0.5,
     });
     const nacelle = new THREE.Mesh(nacelleGeometry, nacelleMaterial);
-    nacelle.position.y = 42;
+    nacelle.position.y = towerH + nacelleH / 2;
     nacelle.castShadow = true;
     nacelle.receiveShadow = true;
     scene.add(nacelle);
@@ -93,11 +104,11 @@ export default function VisualizationPage() {
     const rotorGroup = new THREE.Group();
     rotorRef.current = rotorGroup;
     nacelle.add(rotorGroup);
-    rotorGroup.position.x = 6;
+    rotorGroup.position.x = 6 * towerScale;
     rotorGroup.position.y = 0;
 
     // Hub
-    const hubGeometry = new THREE.SphereGeometry(2, 32, 32);
+    const hubGeometry = new THREE.SphereGeometry(2 * towerScale, 32, 32);
     const hubMaterial = new THREE.MeshStandardMaterial({
       color: 0xf2a93b, // amber primary
       metalness: 0.5,
@@ -108,20 +119,19 @@ export default function VisualizationPage() {
     hub.receiveShadow = true;
     rotorGroup.add(hub);
 
-    // Створити blades. Blades fan out around the rotor shaft (X-axis from the
-    // nacelle), so each blade group is rotated around X by 120° increments —
-    // that puts the three blades in the Y-Z plane (perpendicular to the shaft).
-    // The rotor itself then spins around X like a real propeller.
+    // Blades fan out around the rotor shaft (X-axis from the nacelle), so each
+    // blade group is rotated around X by 120° increments — puts the three blades
+    // in the Y-Z plane (perpendicular to shaft). Rotor spins around X like a propeller.
     const createBlade = (angleAroundShaft: number) => {
       // Blade extruded along Y (length), thin in Z (chord), narrow in X (thickness)
-      const bladeGeometry = new THREE.BoxGeometry(1, 25, 2);
+      const bladeGeometry = new THREE.BoxGeometry(1, bladeHalfLen * 2, 2);
       const bladeMaterial = new THREE.MeshStandardMaterial({
         color: 0x3acabf, // signal-live teal
         metalness: 0.3,
         roughness: 0.6,
       });
       const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-      blade.position.y = 12.5; // hub-to-tip offset
+      blade.position.y = bladeHalfLen; // hub-to-tip offset
       blade.castShadow = true;
       blade.receiveShadow = true;
 
@@ -171,7 +181,7 @@ export default function VisualizationPage() {
           camera.getWorldDirection(new THREE.Vector3()).cross(new THREE.Vector3(0, 1, 0)),
           deltaY * 0.01
         );
-        camera.lookAt(0, 20, 0);
+        camera.lookAt(0, towerH * 0.5, 0);
 
         previousMousePosition = { x: e.clientX, y: e.clientY };
       }
@@ -187,7 +197,7 @@ export default function VisualizationPage() {
       const distance = camera.position.length();
       const newDistance = distance + e.deltaY * 0.1;
       camera.position.copy(direction.multiplyScalar(Math.max(10, Math.min(200, newDistance))));
-      camera.lookAt(0, 20, 0);
+      camera.lookAt(0, towerH * 0.5, 0);
     };
 
     renderer.domElement.addEventListener('mousedown', onMouseDown);
