@@ -131,8 +131,12 @@ export function PowerCurve({ data = [], model = '2.5MW', isLoading }: PowerCurve
               dataKey="wind_speed"
               label={{ value: t('physics.wind_speed_ms'), position: 'insideBottomRight', offset: -10 }}
               type="number"
+              domain={[0, 30]}
             />
             <YAxis
+              dataKey="power"
+              type="number"
+              domain={[0, 'dataMax + 200']}
               label={{ value: `${t('turbines.power_output')} (${t('common.kw')})`, angle: -90, position: 'insideLeft' }}
             />
             <Tooltip content={customTooltip} />
