@@ -3,11 +3,21 @@
  * Unified дані fetching combining TanStack Query + WebSocket real-time дані
  */
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { QueryObserverResult } from "@tanstack/react-query";
 import { useRealtime } from "./useRealtime";
 import { getApiWithAuth } from "../lib/api";
+import { loadLocal } from "../lib/localStore";
 import type { Turbine, TurbineDetail, TurbineRealtimeData, Alert } from "../types/api";
+
+interface StoredTurbineSettings {
+  tower_height?: number;
+  rotor_diameter?: number;
+  rated_power_kw?: number;
+  cut_in_speed?: number;
+  cut_out_speed?: number;
+}
 
 interface UseTurbineDataOptions {
   turbineId?: string;
@@ -121,8 +131,22 @@ export function useTurbineData(
   // Отримати the latest real-time дані for this turbine
   const realtimeData = turbineId ? getTurbineData(turbineId) : null;
 
+  // Merge user-edited overrides from the settings page (localStorage) on top
+  // of the backend response so the rest of the dashboard reflects them.
+  const turbineWithOverrides = useMemo<TurbineDetail | null>(() => {
+    if (!turbine || !turbineId) return turbine;
+    const stored = loadLocal<StoredTurbineSettings>(`turbine-settings:${turbineId}`);
+    if (!stored) return turbine;
+    return {
+      ...turbine,
+      tower_height: stored.tower_height ?? turbine.tower_height,
+      rotor_diameter: stored.rotor_diameter ?? turbine.rotor_diameter,
+      rated_power_kw: stored.rated_power_kw ?? turbine.rated_power_kw,
+    };
+  }, [turbine, turbineId]);
+
   return {
-    turbine,
+    turbine: turbineWithOverrides,
     realtimeData,
     isLoading,
     isError,

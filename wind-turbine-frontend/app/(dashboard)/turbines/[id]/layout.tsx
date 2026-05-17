@@ -1,6 +1,6 @@
 'use client';
 
-import { useParams, usePathname } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTurbineData } from '@/hooks/useTurbineData';
 import { useRole } from '@/hooks/useRole';
@@ -17,6 +17,7 @@ export default function TurbineDetailLayout({
   const t = useT();
   const params = useParams();
   const pathname = usePathname();
+  const router = useRouter();
   const turbineId = params.id as string;
   const currentTab = pathname?.split(`/turbines/${turbineId}/`)[1]?.split('/')[0] || 'overview';
   const { canEditConfig } = useRole();
@@ -61,7 +62,11 @@ export default function TurbineDetailLayout({
             <Skeleton className="h-6 w-96" />
           </div>
         ) : turbine ? (
-          <TurbineHeader turbine={turbine} canEdit={canEditConfig()} />
+          <TurbineHeader
+            turbine={turbine}
+            canEdit={canEditConfig()}
+            onEdit={() => router.push(`/turbines/${turbineId}/settings`)}
+          />
         ) : null}
 
         {/* Tabs Navigation */}

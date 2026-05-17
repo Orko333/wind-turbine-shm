@@ -2,6 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useState, useCallback, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTurbineData } from '@/hooks/useTurbineData';
 import { useRole } from '@/hooks/useRole';
 import { useToast } from '@/hooks/useToast';
@@ -62,6 +63,7 @@ export default function SettingsPage() {
   const { canEditConfig } = useRole();
   const canEdit = canEditConfig();
 
+  const queryClient = useQueryClient();
   const { turbine, isLoading } = useTurbineData({
     turbineId,
     enabled: Boolean(turbineId),
@@ -112,6 +114,9 @@ export default function SettingsPage() {
     setIsSaving(true);
     try {
       saveSettings(turbineId, formData);
+      // Invalidate cached turbine detail so the layout/header and overview KPIs
+      // pick up the new overrides (rated power, tower height, rotor diameter).
+      queryClient.invalidateQueries({ queryKey: ['turbine', turbineId] });
       success(t('turbines.settings_saved'));
       setIsEditing(false);
     } catch (err) {
@@ -120,7 +125,7 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [turbineId, formData, canEdit, success, showError, t]);
+  }, [turbineId, formData, canEdit, success, showError, t, queryClient]);
 
   const handleCancel = useCallback(() => {
     setFormData(buildFromTurbine());
