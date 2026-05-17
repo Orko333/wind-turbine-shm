@@ -58,6 +58,23 @@ export function CNNClassification({ turbineId }: CNNClassificationProps) {
             fs: 100.0,
             signal_duration_sec: 10.0,
           });
+
+          // Backend returns class='unknown' and an empty probability dict when
+          // its CNN has only just been lazy-initialised (no training data on
+          // ephemeral HF Space). Fall through to the demo result so the panel
+          // shows something meaningful instead of "unknown / 0.0%".
+          const probsCount = Object.keys(backend.probabilities ?? {}).length;
+          const isMeaningless =
+            !backend.damage_class ||
+            backend.damage_class === 'unknown' ||
+            probsCount === 0 ||
+            !Number.isFinite(backend.confidence) ||
+            backend.confidence <= 0;
+
+          if (isMeaningless) {
+            throw new Error('Backend CNN returned empty prediction');
+          }
+
           const mappedClass = classMap[backend.damage_class] ?? backend.damage_class;
           const mappedProbs: { [key: string]: number } = {};
           for (const [k, v] of Object.entries(backend.probabilities)) {

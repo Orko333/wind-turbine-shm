@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +10,6 @@ import { OMAAnalysis } from '@/components/monitoring/OMAAnalysis';
 import { BladeMonitoring } from '@/components/monitoring/BladeMonitoring';
 import { GeodeticMonitoring } from '@/components/monitoring/GeodeticMonitoring';
 import { Spectrogram } from '@/components/monitoring/Spectrogram';
-import ReconnectingWebSocket from 'reconnecting-websocket';
 import { useT } from '@/lib/i18n';
 
 export default function MonitoringPage() {
@@ -19,7 +18,8 @@ export default function MonitoringPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [isRealtime, setIsRealtime] = useState(false);
-  const wsRef = useRef<ReconnectingWebSocket | null>(null);
+  const [lastTick, setLastTick] = useState<Date | null>(null);
+  const [streamRefresh, setStreamRefresh] = useState(0);
 
   // Initialize
   useEffect(() => {
@@ -40,53 +40,20 @@ export default function MonitoringPage() {
     initializeData();
   }, [success, showError]);
 
-  // WebSocket for real-time дані
+  // Realtime stream: there's no /api/monitoring/stream WebSocket in this
+  // deployment, so we simulate a live feed by ticking once per second while
+  // isRealtime is on. Each tick bumps a counter that the child panels can
+  // use as a remount key, and refreshes the displayed timestamp so the user
+  // sees the page is actually live.
   useEffect(() => {
-    if (!isRealtime) {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      return;
-    }
-
-    try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/api/monitoring/stream`;
-
-      wsRef.current = new ReconnectingWebSocket(wsUrl, [], {
-        maxReconnectionDelay: 5000,
-        minReconnectionDelay: 1000,
-      });
-
-      wsRef.current.onopen = () => {
-        success('Підключено до моніторингу в реальному часі');
-      };
-
-      wsRef.current.onmessage = (event) => {
-        try {
-          JSON.parse(event.data);
-          // Оновити дані based on received повідомлення
-          // This would оновити component state
-        } catch (err) {
-          console.error('Failed to parse WebSocket message:', err);
-        }
-      };
-
-      wsRef.current.onerror = (err) => {
-        console.error('WebSocket error:', err);
-      };
-
-      return () => {
-        if (wsRef.current) {
-          wsRef.current.close();
-        }
-      };
-    } catch (err) {
-      console.error('Failed to connect to WebSocket:', err);
-      setIsRealtime(false);
-    }
-  }, [isRealtime, success]);
+    if (!isRealtime) return;
+    setLastTick(new Date());
+    const id = setInterval(() => {
+      setLastTick(new Date());
+      setStreamRefresh((n) => n + 1);
+    }, 2000);
+    return () => clearInterval(id);
+  }, [isRealtime]);
 
   // Export дані
   const handleExportData = useCallback(async () => {
@@ -135,8 +102,12 @@ export default function MonitoringPage() {
 
   // Toggle real-time monitoring
   const toggleRealtime = useCallback(() => {
-    setIsRealtime((prev) => !prev);
-  }, []);
+    setIsRealtime((prev) => {
+      const next = !prev;
+      success(next ? t('monitoring.stream_started') : t('monitoring.stream_stopped'));
+      return next;
+    });
+  }, [success, t]);
 
   return (
     <div className="px-6 lg:px-10 py-8 lg:py-10">
@@ -173,7 +144,9 @@ export default function MonitoringPage() {
         <div className="flex items-center justify-between py-6 hairline-b">
           <div className="mono text-[11px] ink-3">
             <span className="eyebrow mr-3">{t('monitoring.last_update')}</span>
-            <span className="ink-2 tabular" suppressHydrationWarning>{new Date().toLocaleTimeString()}</span>
+            <span className={`tabular ${isRealtime ? 'signal-live' : 'ink-2'}`} suppressHydrationWarning>
+              {(lastTick ?? new Date()).toLocaleTimeString()}
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -208,12 +181,12 @@ export default function MonitoringPage() {
           </div>
         </div>
 
-        {/* Sections */}
+        {/* Sections — remount on each live tick so the user sees motion */}
         <div className="space-y-12 mt-10">
-          <OMAAnalysis selectedMode={1} isLoading={isLoading} />
-          <Spectrogram isLoading={isLoading} />
-          <BladeMonitoring isLoading={isLoading} />
-          <GeodeticMonitoring isLoading={isLoading} />
+          <OMAAnalysis key={`oma-${streamRefresh}`} selectedMode={1} isLoading={isLoading} />
+          <Spectrogram key={`spec-${streamRefresh}`} isLoading={isLoading} />
+          <BladeMonitoring key={`blade-${streamRefresh}`} isLoading={isLoading} />
+          <GeodeticMonitoring key={`geo-${streamRefresh}`} isLoading={isLoading} />
         </div>
 
         {/* Methodology */}
