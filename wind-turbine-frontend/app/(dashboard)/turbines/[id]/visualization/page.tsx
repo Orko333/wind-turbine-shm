@@ -108,22 +108,27 @@ export default function VisualizationPage() {
     hub.receiveShadow = true;
     rotorGroup.add(hub);
 
-    // Створити blades
-    const createBlade = (rotationZ: number) => {
-      const bladeGeometry = new THREE.BoxGeometry(2, 25, 1);
+    // Створити blades. Blades fan out around the rotor shaft (X-axis from the
+    // nacelle), so each blade group is rotated around X by 120° increments —
+    // that puts the three blades in the Y-Z plane (perpendicular to the shaft).
+    // The rotor itself then spins around X like a real propeller.
+    const createBlade = (angleAroundShaft: number) => {
+      // Blade extruded along Y (length), thin in Z (chord), narrow in X (thickness)
+      const bladeGeometry = new THREE.BoxGeometry(1, 25, 2);
       const bladeMaterial = new THREE.MeshStandardMaterial({
         color: 0x3acabf, // signal-live teal
         metalness: 0.3,
         roughness: 0.6,
       });
       const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-      blade.position.y = 12.5;
+      blade.position.y = 12.5; // hub-to-tip offset
       blade.castShadow = true;
       blade.receiveShadow = true;
 
       const bladeGroup = new THREE.Group();
       bladeGroup.add(blade);
-      bladeGroup.rotation.z = rotationZ;
+      // Rotate around the X axis so the blade sits in the Y-Z plane
+      bladeGroup.rotation.x = angleAroundShaft;
       return bladeGroup;
     };
 
