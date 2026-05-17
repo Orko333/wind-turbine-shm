@@ -2,6 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   LineChart,
   Line,
@@ -15,35 +16,34 @@ import {
   Bar,
 } from 'recharts';
 import { useTurbineData } from '@/hooks/useTurbineData';
+import { getApiWithAuth } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useT } from '@/lib/i18n';
 
-// Mock cumulative damage дані
-function generateDamageData(baseRate: number) {
-  const days = Array.from({ length: 365 }, (_, i) => i);
-  let cumulative = 0;
-  return days.map((day) => {
-    cumulative += (baseRate / 365) * (0.8 + Math.random() * 0.4);
-    return {
-      day: day,
-      cumulative: Math.min(100, cumulative),
-      daily: (baseRate / 365) * (0.8 + Math.random() * 0.4),
-    };
-  });
+interface RulTrendPoint {
+  timestamp: string;
+  damage_index: number;
+  rul_days: number | null;
+}
+interface RulTrendResponse {
+  turbine_id: string;
+  predictions: RulTrendPoint[];
+}
+interface ScadaSample {
+  timestamp: string;
+  tower_moment_knm: number;
+  vibration_mms: number;
+  cumulative_damage: number;
+}
+interface ScadaHistoryResponse {
+  samples: ScadaSample[];
 }
 
-// Mock rainflow histogram
-function generateRainflowHistogram() {
-  const bins = Array.from({ length: 10 }, (_, i) => i + 1);
-  return bins.map((bin) => ({
-    bin: `${bin * 10}-${(bin + 1) * 10}%`,
-    count: Math.floor(Math.random() * 500) + 100,
-  }));
-}
-
-// Mock S-N curve дані (logarithmic scale)
-function generateSNCurveData() {
+// S-N curve uses the material's Wöhler equation, not data — it's a known
+// physics relation (stress range vs cycles to failure for steel S355).
+// Keep computed client-side; the *shape* doesn't depend on telemetry.
+function snCurve() {
   return Array.from({ length: 20 }, (_, i) => ({
     cycles: Math.pow(10, i * 0.25),
     stress: 300 / Math.pow(Math.pow(10, i * 0.25), 0.3),
@@ -60,15 +60,60 @@ export default function FatiguePage() {
     enabled: Boolean(turbineId),
   });
 
-  const damageData = useMemo(
-    () => generateDamageData(turbine?.damage_rate || 5),
-    [turbine?.damage_rate]
-  );
+  // Real damage trajectory from backend RUL trend (each prediction has
+  // damage_index which becomes cumulative damage curve)
+  const { data: rulTrend } = useQuery({
+    queryKey: ['rul-trend', turbineId, 'fatigue'],
+    queryFn: () => getApiWithAuth<RulTrendResponse>(`/analytics/turbine/${turbineId}/rul-trend?days=24`),
+    enabled: Boolean(turbineId),
+    staleTime: 5 * 60_000,
+  });
 
-  const rainflowData = useMemo(() => generateRainflowHistogram(), []);
-  const snCurveData = useMemo(() => generateSNCurveData(), []);
+  // Real SCADA history for rainflow-equivalent: bucket tower moment ranges
+  const { data: scadaHistory } = useQuery({
+    queryKey: ['scada-history', turbineId, 24, 'fatigue'],
+    queryFn: () => getApiWithAuth<ScadaHistoryResponse>(`/scada/history/${turbineId}?hours=24`),
+    enabled: Boolean(turbineId),
+    staleTime: 60_000,
+  });
 
-  // RUL confidence band
+  const damageData = useMemo(() => {
+    const preds = rulTrend?.predictions ?? [];
+    if (!preds.length) return [];
+    return preds.map((p, i) => ({
+      day: i,
+      cumulative: p.damage_index * 100,
+      daily: i === 0 ? 0 : Math.max(0, (p.damage_index - (preds[i - 1]?.damage_index ?? 0)) * 100),
+    }));
+  }, [rulTrend]);
+
+  const rainflowData = useMemo(() => {
+    const samples = scadaHistory?.samples ?? [];
+    if (!samples.length) return [];
+    // Bucket tower moment into 10 ranges (rainflow approximation from history)
+    const moments = samples.map((s) => s.tower_moment_knm).filter((v) => Number.isFinite(v));
+    if (!moments.length) return [];
+    const min = Math.min(...moments);
+    const max = Math.max(...moments);
+    const span = max - min || 1;
+    const bins = Array.from({ length: 10 }, () => 0);
+    for (const m of moments) {
+      const idx = Math.min(9, Math.floor(((m - min) / span) * 10));
+      bins[idx] += 1;
+    }
+    return bins.map((count, i) => {
+      const low = min + (i * span) / 10;
+      const high = min + ((i + 1) * span) / 10;
+      return {
+        bin: `${low.toFixed(0)}-${high.toFixed(0)} kNm`,
+        count,
+      };
+    });
+  }, [scadaHistory]);
+
+  const snCurveData = useMemo(() => snCurve(), []);
+
+  // Forecast band derived from real damage trajectory: project current slope
   const rulForecast = useMemo(() => {
     const rul = turbine?.rul_years || 0;
     const months = Array.from({ length: 24 }, (_, i) => i);
