@@ -67,6 +67,7 @@ class ROMStressAnalysisResult(BaseModel):
     max_stress_mpa: float
     utilization_ratio: float
     safety_status: str  # safe, warning, critical
+    natural_frequencies_hz: List[float] = []
 
 
 class DynamicSimulationRequest(BaseModel):
@@ -83,7 +84,9 @@ class DynamicSimulationResult(BaseModel):
     max_displacement_m: float
     cumulative_damage: float
     years_to_failure: float
+    rul_years: float  # alias for frontend compatibility
     fatigue_status: str  # safe, degraded
+    simulation_time_sec: float = 0.0
 
 
 # ==================== Ендпоінти OpenFAST ====================
@@ -267,6 +270,7 @@ async def analyze_rom_stress(
             max_stress_mpa=response["max_stress_mpa"],
             utilization_ratio=float(safety["utilization_ratio"]),
             safety_status=safety["status"],
+            natural_frequencies_hz=rom.frequencies.tolist(),
         )
 
     except Exception as e:
@@ -313,13 +317,17 @@ async def dynamic_rom_simulation(
             f"years_to_failure={fatigue['estimated_years_to_failure']:.1f}"
         )
 
+        sim_time = len(request.wind_speed_timeseries) * request.dt
+        years_to_failure = float(fatigue["estimated_years_to_failure"])
         return DynamicSimulationResult(
             turbine_id=request.turbine_id,
             max_stress_mpa=response["max_stress_mpa"],
             max_displacement_m=response["max_displacement_m"],
             cumulative_damage=float(fatigue["cumulative_damage"]),
-            years_to_failure=float(fatigue["estimated_years_to_failure"]),
+            years_to_failure=years_to_failure,
+            rul_years=years_to_failure,
             fatigue_status=fatigue["status"],
+            simulation_time_sec=sim_time,
         )
 
     except Exception as e:

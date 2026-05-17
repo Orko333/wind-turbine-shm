@@ -175,7 +175,10 @@ class ReducedOrderModel:
             Переміщення башти та напруження
         """
         # Розв'язуємо K_r * q = f_r відносно модальних координат
-        f_r = self.Phi.T @ np.array([applied_force_base * 1000, 0, 0, 0, 0, 0])  # Сила в Н
+        # Force vector must match reduced DOF count (Phi rows), applied at first DOF
+        f_full = np.zeros(self.Phi.shape[0])
+        f_full[0] = applied_force_base * 1000  # Н
+        f_r = self.Phi.T @ f_full
 
         try:
             q = np.linalg.solve(self.K_r, f_r[:self.n_modes])
