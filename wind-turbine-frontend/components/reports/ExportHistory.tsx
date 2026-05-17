@@ -1,11 +1,25 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Download, Eye, Trash2, Calendar } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
 import { useLocale } from '../../lib/i18n';
+import { getApiWithAuth, deleteApiWithAuth } from '../../lib/api';
+
+interface BackendExport {
+  id: string;
+  report_title: string;
+  exported_at: string;
+  exported_by: string | null;
+  format: string;
+  file_size: string;
+  turbine_count: number;
+  date_from: string | null;
+  date_to: string | null;
+  status: string;
+}
 
 interface ExportRecord {
   id: string;
@@ -164,13 +178,40 @@ const UI_TEXT = {
   },
 } as const;
 
+function backendToExport(b: BackendExport): ExportRecord {
+  return {
+    id: b.id,
+    reportTitle: b.report_title,
+    exportedAt: b.exported_at,
+    exportedBy: b.exported_by || '—',
+    format: b.format as 'pdf' | 'csv' | 'json' | 'xlsx',
+    fileSize: b.file_size,
+    turbineCount: b.turbine_count,
+    dateRange: { start: b.date_from || '', end: b.date_to || '' },
+    status: b.status as 'completed' | 'pending' | 'failed',
+  };
+}
+
 export function ExportHistory() {
   const { success, error: showError, info } = useToast();
   const { locale } = useLocale();
   const L = UI_TEXT[locale];
-  const [exports, setExports] = useState<ExportRecord[]>(sampleExports);
+  const [exports, setExports] = useState<ExportRecord[]>([]);
   const [selectedExports, setSelectedExports] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    getApiWithAuth<BackendExport[]>('/reports/exports')
+      .then((rows) => {
+        // Show backend rows; if user has none yet, surface the sample
+        // fixtures so the table isn't empty on first visit.
+        setExports(rows.length ? rows.map(backendToExport) : sampleExports);
+      })
+      .catch((err) => {
+        console.error('Load exports failed:', err);
+        setExports(sampleExports);
+      });
+  }, []);
 
   const handleToggleSelect = useCallback((exportId: string) => {
     setSelectedExports((prev) => {
@@ -189,22 +230,40 @@ export function ExportHistory() {
     success(L.downloadStarted);
   }, [success, L.downloadStarted]);
 
-  const handleDelete = useCallback((exportId: string) => {
+  const handleDelete = useCallback(async (exportId: string) => {
     setIsDeleting(true);
-    setExports((prev) => prev.filter((e) => e.id !== exportId));
-    success(L.deleteSuccess);
-    setIsDeleting(false);
-  }, [success, L.deleteSuccess]);
+    try {
+      // Sample rows aren't on backend; just drop them locally
+      const isSample = sampleExports.some((s) => s.id === exportId);
+      if (!isSample) {
+        await deleteApiWithAuth(`/reports/exports/${exportId}`);
+      }
+      setExports((prev) => prev.filter((e) => e.id !== exportId));
+      success(L.deleteSuccess);
+    } catch (err) {
+      showError(L.deleteFailed);
+      console.error(err);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [success, showError, L.deleteSuccess, L.deleteFailed]);
 
-  const handleBulkDelete = useCallback(() => {
+  const handleBulkDelete = useCallback(async () => {
     setIsDeleting(true);
-    setExports((prev) => prev.filter((e) => !selectedExports.has(e.id)));
-    setSelectedExports(new Set());
-    success(L.bulkDeleteSuccess);
-    setIsDeleting(false);
-  }, [selectedExports, success, L.bulkDeleteSuccess]);
-
-  void showError;
+    try {
+      const toDelete = Array.from(selectedExports);
+      const realIds = toDelete.filter((id) => !sampleExports.some((s) => s.id === id));
+      await Promise.all(realIds.map((id) => deleteApiWithAuth(`/reports/exports/${id}`)));
+      setExports((prev) => prev.filter((e) => !selectedExports.has(e.id)));
+      setSelectedExports(new Set());
+      success(L.bulkDeleteSuccess);
+    } catch (err) {
+      showError(L.bulkDeleteFailed);
+      console.error(err);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [selectedExports, success, showError, L.bulkDeleteSuccess, L.bulkDeleteFailed]);
 
   const formatDate = useCallback((dateString: string) => {
     return new Date(dateString).toLocaleDateString(locale === 'uk' ? 'uk-UA' : 'en-US', {

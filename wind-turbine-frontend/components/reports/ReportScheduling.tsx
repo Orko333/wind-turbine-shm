@@ -1,12 +1,28 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { useToast } from '../../hooks/useToast';
 import { Clock, Plus, Edit2, Trash2, Mail } from 'lucide-react';
 import { useLocale } from '../../lib/i18n';
+import { getApiWithAuth, postApiWithAuth, patchApiWithAuth, deleteApiWithAuth } from '../../lib/api';
+
+interface BackendSchedule {
+  id: string;
+  name: string;
+  frequency: string;
+  day_of_week: string | null;
+  day_of_month: number | null;
+  time: string;
+  format: string;
+  recipients: string[];
+  metrics: string[];
+  enabled: boolean;
+  last_run: string | null;
+  next_run: string | null;
+}
 
 interface ScheduledReport {
   id: string;
@@ -143,46 +159,31 @@ export function ReportScheduling() {
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [schedules, setSchedules] = useState<ScheduledReport[]>([
-    {
-      id: '1',
-      name: 'Daily Performance Summary',
-      frequency: 'daily',
-      time: '06:00',
-      format: 'pdf',
-      recipients: ['team@example.com'],
-      metrics: ['power_output', 'availability', 'efficiency'],
-      enabled: true,
-      lastRun: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
-      nextRun: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '2',
-      name: 'Weekly Maintenance Report',
-      frequency: 'weekly',
-      dayOfWeek: 'Monday',
-      time: '09:00',
-      format: 'xlsx',
-      recipients: ['maintenance@example.com'],
-      metrics: ['damage', 'rul', 'vibration'],
-      enabled: true,
-      lastRun: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      nextRun: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '3',
-      name: 'Monthly Executive Summary',
-      frequency: 'monthly',
-      dayOfMonth: 1,
-      time: '08:00',
-      format: 'pdf',
-      recipients: ['ceo@example.com', 'cfo@example.com'],
-      metrics: ['power_output', 'efficiency', 'availability', 'damage'],
-      enabled: true,
-      lastRun: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      nextRun: new Date(Date.now() + 29 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-  ]);
+  const [schedules, setSchedules] = useState<ScheduledReport[]>([]);
+
+  // Load from backend on mount
+  useEffect(() => {
+    getApiWithAuth<BackendSchedule[]>('/reports/schedules')
+      .then((rows) => {
+        setSchedules(
+          rows.map((b) => ({
+            id: b.id,
+            name: b.name,
+            frequency: b.frequency as ScheduledReport['frequency'],
+            dayOfWeek: b.day_of_week || undefined,
+            dayOfMonth: b.day_of_month || undefined,
+            time: b.time,
+            format: b.format as ScheduledReport['format'],
+            recipients: b.recipients,
+            metrics: b.metrics,
+            enabled: b.enabled,
+            lastRun: b.last_run || undefined,
+            nextRun: b.next_run || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          }))
+        );
+      })
+      .catch((err) => console.error('Load schedules failed:', err));
+  }, []);
 
   const [formData, setFormData] = useState<Partial<ScheduledReport>>({
     name: '',
@@ -230,43 +231,83 @@ export function ReportScheduling() {
     }));
   }, []);
 
-  const handleSaveSchedule = useCallback(() => {
+  const handleSaveSchedule = useCallback(async () => {
     if (!formData.name || !formData.recipients?.length) {
       showError(L.requiredFields);
       return;
     }
 
     setIsSaving(true);
-    if (isEditing) {
-      setSchedules((prev) =>
-        prev.map((s) => (s.id === isEditing ? { ...s, ...formData } : s))
-      );
-    } else {
-      setSchedules((prev) => [...prev, { ...formData, id: Date.now().toString() } as ScheduledReport]);
+    try {
+      const payload = {
+        name: formData.name,
+        frequency: formData.frequency,
+        day_of_week: formData.dayOfWeek,
+        day_of_month: formData.dayOfMonth,
+        time: formData.time,
+        format: formData.format,
+        recipients: formData.recipients || [],
+        metrics: formData.metrics || [],
+        enabled: formData.enabled ?? true,
+      };
+      let saved: BackendSchedule;
+      if (isEditing) {
+        saved = await patchApiWithAuth<BackendSchedule>(`/reports/schedules/${isEditing}`, payload);
+      } else {
+        saved = await postApiWithAuth<BackendSchedule>('/reports/schedules', payload);
+      }
+      const mapped: ScheduledReport = {
+        id: saved.id,
+        name: saved.name,
+        frequency: saved.frequency as ScheduledReport['frequency'],
+        dayOfWeek: saved.day_of_week || undefined,
+        dayOfMonth: saved.day_of_month || undefined,
+        time: saved.time,
+        format: saved.format as ScheduledReport['format'],
+        recipients: saved.recipients,
+        metrics: saved.metrics,
+        enabled: saved.enabled,
+        nextRun: saved.next_run || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      };
+      setSchedules((prev) => {
+        if (isEditing) return prev.map((s) => (s.id === isEditing ? mapped : s));
+        return [...prev, mapped];
+      });
+      success(isEditing ? L.scheduleUpdated : L.scheduleCreated);
+      setFormData({
+        name: '',
+        frequency: 'daily',
+        time: '06:00',
+        format: 'pdf',
+        recipients: [],
+        metrics: [],
+        enabled: true,
+      });
+      setIsAdding(false);
+      setIsEditing(null);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : L.scheduleSaveFailed);
+      console.error(err);
+    } finally {
+      setIsSaving(false);
     }
-    success(isEditing ? L.scheduleUpdated : L.scheduleCreated);
-    setFormData({
-      name: '',
-      frequency: 'daily',
-      time: '06:00',
-      format: 'pdf',
-      recipients: [],
-      metrics: [],
-      enabled: true,
-    });
-    setIsAdding(false);
-    setIsEditing(null);
-    setIsSaving(false);
-  }, [formData, isEditing, success, showError, L.requiredFields, L.scheduleUpdated, L.scheduleCreated]);
+  }, [formData, isEditing, success, showError, L.requiredFields, L.scheduleUpdated, L.scheduleCreated, L.scheduleSaveFailed]);
 
   const handleDeleteSchedule = useCallback(
-    (scheduleId: string) => {
+    async (scheduleId: string) => {
       setIsSaving(true);
-      setSchedules((prev) => prev.filter((s) => s.id !== scheduleId));
-      success(L.scheduleDeleted);
-      setIsSaving(false);
+      try {
+        await deleteApiWithAuth(`/reports/schedules/${scheduleId}`);
+        setSchedules((prev) => prev.filter((s) => s.id !== scheduleId));
+        success(L.scheduleDeleted);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : 'Delete failed');
+        console.error(err);
+      } finally {
+        setIsSaving(false);
+      }
     },
-    [success, L.scheduleDeleted]
+    [success, showError, L.scheduleDeleted]
   );
 
   const metrics = ['power_output', 'efficiency', 'availability', 'damage', 'rul', 'vibration'];

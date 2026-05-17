@@ -41,7 +41,10 @@ class UserStorage(Base):
     namespace = Column(String(64), nullable=False, index=True)
     key = Column(String(128), nullable=False, index=True)
     value = Column(Text, nullable=False)  # JSON-encoded
-    __table_args__ = (UniqueConstraint("user_id", "namespace", "key", name="uq_user_ns_key"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "namespace", "key", name="uq_user_ns_key"),
+        {"extend_existing": True},
+    )
 
 
 try:

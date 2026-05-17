@@ -2,6 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   BarChart,
   Bar,
@@ -15,51 +16,21 @@ import {
   Line,
 } from 'recharts';
 import { useTurbineData } from '@/hooks/useTurbineData';
+import { getApiWithAuth } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle, AlertTriangle } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 
-// Mock OMA frequencies
-function generateOMAFrequencies() {
-  return [
-    { mode: '1st Flapwise', frequency: 0.65, damping: 0.08 },
-    { mode: '1st Edgewise', frequency: 1.92, damping: 0.05 },
-    { mode: '2nd Flapwise', frequency: 2.15, damping: 0.12 },
-    { mode: 'Tower 1st', frequency: 0.35, damping: 0.02 },
-    { mode: 'Tower 2nd', frequency: 1.15, damping: 0.03 },
-  ];
-}
-
-// Mock blade condition
-function generateBladeCondition() {
-  return {
-    erosion_percent: Math.random() * 15,
-    ice_percent: Math.random() * 5,
-    imbalance_percent: Math.random() * 10,
-  };
-}
-
-// Mock geodetic settlement
-function generateGeodeticSettlement() {
-  const months = Array.from({ length: 36 }, (_, i) => i);
-  let settlement = 0;
-  return months.map((month) => {
-    settlement += (Math.random() - 0.4) * 0.2;
-    return {
-      month: month,
-      settlement: settlement,
-    };
-  });
-}
-
-// Mock vibration spectrogram
-function generateVibrationSpectrogram() {
-  const frequencies = Array.from({ length: 20 }, (_, i) => (i + 1) * 5);
-  return frequencies.map((freq) => ({
-    frequency: `${freq} Hz`,
-    amplitude: Math.sin(freq / 20) * Math.random() * 100 + 50,
-  }));
+interface HealthSnapshot {
+  turbine_id: string;
+  cumulative_damage: number;
+  health_score: number;
+  status: string;
+  oma_modes: Array<{ mode: string; frequency: number; damping: number }>;
+  blade_condition: { erosion_percent: number; ice_percent: number; imbalance_percent: number };
+  geodetic_settlement: Array<{ month: number; settlement_mm: number }>;
+  vibration_spectrogram: Array<{ frequency_hz: number; amplitude: number }>;
 }
 
 export default function HealthPage() {
@@ -72,10 +43,28 @@ export default function HealthPage() {
     enabled: Boolean(turbineId),
   });
 
-  const omaFrequencies = useMemo(() => generateOMAFrequencies(), []);
-  const bladeCondition = useMemo(() => generateBladeCondition(), []);
-  const geodethicSettlement = useMemo(() => generateGeodeticSettlement(), []);
-  const vibrationSpectrogram = useMemo(() => generateVibrationSpectrogram(), []);
+  // Real health snapshot from backend (deterministic, derived from
+  // the turbine's cumulative_damage — no Math.random)
+  const { data: snapshot } = useQuery({
+    queryKey: ['health-snapshot', turbineId],
+    queryFn: () => getApiWithAuth<HealthSnapshot>(`/health-snapshot/${turbineId}`),
+    enabled: Boolean(turbineId),
+    staleTime: 60_000,
+  });
+
+  const omaFrequencies = useMemo(() => snapshot?.oma_modes ?? [], [snapshot]);
+  const bladeCondition = useMemo(
+    () => snapshot?.blade_condition ?? { erosion_percent: 0, ice_percent: 0, imbalance_percent: 0 },
+    [snapshot]
+  );
+  const geodethicSettlement = useMemo(
+    () => (snapshot?.geodetic_settlement ?? []).map((p) => ({ month: p.month, settlement: p.settlement_mm })),
+    [snapshot]
+  );
+  const vibrationSpectrogram = useMemo(
+    () => (snapshot?.vibration_spectrogram ?? []).map((s) => ({ frequency: `${s.frequency_hz} Hz`, amplitude: s.amplitude })),
+    [snapshot]
+  );
 
   if (isLoading) {
     return (

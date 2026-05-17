@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Download, Filter, Search } from 'lucide-react';
+import { getApiWithAuth } from '../../lib/api';
 
 interface AuditLog {
   id: string;
@@ -17,6 +18,18 @@ interface AuditLog {
   status: 'success' | 'failure';
   ipAddress: string;
   details: string;
+}
+
+interface BackendAuditLog {
+  id: number;
+  timestamp: string;
+  user_id: string | null;
+  user_name: string | null;
+  action: string;
+  resource: string | null;
+  status: string;
+  ip_address: string | null;
+  details: string | null;
 }
 
 const sampleLogs: AuditLog[] = [
@@ -92,10 +105,40 @@ const sampleLogs: AuditLog[] = [
 ];
 
 export function AuditLogs() {
-  const [logs] = useState<AuditLog[]>(sampleLogs);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'success' | 'failure'>('all');
+
+  useEffect(() => {
+    getApiWithAuth<BackendAuditLog[]>('/admin/audit-logs?limit=200')
+      .then((rows) => {
+        if (!rows.length) {
+          // No records yet — keep the sample fixtures visible so the table
+          // isn't empty on first visit. Real records replace them as they
+          // accrue from create/edit/delete actions.
+          setLogs(sampleLogs);
+          return;
+        }
+        setLogs(
+          rows.map((r) => ({
+            id: String(r.id),
+            timestamp: r.timestamp,
+            userId: r.user_id || '',
+            userName: r.user_name || 'system',
+            action: r.action,
+            resource: r.resource || '',
+            status: (r.status === 'success' ? 'success' : 'failure') as 'success' | 'failure',
+            ipAddress: r.ip_address || '',
+            details: r.details || '',
+          }))
+        );
+      })
+      .catch((err) => {
+        console.error('Load audit logs failed:', err);
+        setLogs(sampleLogs);
+      });
+  }, []);
 
   const filteredLogs = useCallback(() => {
     return logs.filter((log) => {

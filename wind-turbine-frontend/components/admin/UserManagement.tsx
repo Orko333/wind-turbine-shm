@@ -1,12 +1,24 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { useToast } from '../../hooks/useToast';
 import { useLocale } from '../../lib/i18n';
+import { getApiWithAuth, postApiWithAuth, patchApiWithAuth, deleteApiWithAuth } from '../../lib/api';
 import { Plus, Edit2, Trash2, Lock, Unlock, Mail } from 'lucide-react';
+
+interface BackendUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  mfa_enabled: boolean;
+  last_login: string | null;
+  created_at: string;
+}
 
 const UM_TEXT = {
   en: {
@@ -118,6 +130,19 @@ interface User {
   mfaEnabled: boolean;
 }
 
+function backendToView(b: BackendUser): User {
+  return {
+    id: b.id,
+    name: b.name,
+    email: b.email,
+    role: b.role as User['role'],
+    status: b.status as User['status'],
+    lastLogin: b.last_login || b.created_at,
+    createdAt: b.created_at,
+    mfaEnabled: b.mfa_enabled,
+  };
+}
+
 export function UserManagement() {
   const { success, error: showError } = useToast();
   const { locale } = useLocale();
@@ -126,58 +151,14 @@ export function UserManagement() {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: '1',
-      name: 'Admin User',
-      email: 'admin@example.com',
-      role: 'admin',
-      status: 'active',
-      lastLogin: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-      mfaEnabled: true,
-    },
-    {
-      id: '2',
-      name: 'Engineering Team Lead',
-      email: 'engineer@example.com',
-      role: 'engineer',
-      status: 'active',
-      lastLogin: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-      mfaEnabled: true,
-    },
-    {
-      id: '3',
-      name: 'Operations Manager',
-      email: 'manager@example.com',
-      role: 'manager',
-      status: 'active',
-      lastLogin: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-      mfaEnabled: false,
-    },
-    {
-      id: '4',
-      name: 'Turbine Operator',
-      email: 'operator@example.com',
-      role: 'operator',
-      status: 'active',
-      lastLogin: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      mfaEnabled: false,
-    },
-    {
-      id: '5',
-      name: 'Inactive User',
-      email: 'inactive@example.com',
-      role: 'operator',
-      status: 'inactive',
-      lastLogin: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString(),
-      mfaEnabled: false,
-    },
-  ]);
+  const [users, setUsers] = useState<User[]>([]);
+
+  // Load users from backend
+  useEffect(() => {
+    getApiWithAuth<BackendUser[]>('/admin/users')
+      .then((rows) => setUsers(rows.map(backendToView)))
+      .catch((e) => console.error('Load users failed:', e));
+  }, []);
 
   const [formData, setFormData] = useState<Partial<User>>({
     name: '',
@@ -194,35 +175,59 @@ export function UserManagement() {
     }));
   }, []);
 
-  const handleSaveUser = useCallback(() => {
+  const handleSaveUser = useCallback(async () => {
     if (!formData.name || !formData.email) {
       showError(L.requiredFields);
       return;
     }
 
     setIsSaving(true);
-    if (isEditing) {
-      setUsers((prev) =>
-        prev.map((u) => (u.id === isEditing ? { ...u, ...formData } : u))
-      );
-    } else {
-      setUsers((prev) => [...prev, { ...formData, id: Date.now().toString(), createdAt: new Date().toISOString(), lastLogin: new Date().toISOString() } as User]);
+    try {
+      if (isEditing) {
+        const updated = await patchApiWithAuth<BackendUser>(`/admin/users/${isEditing}`, {
+          name: formData.name,
+          role: formData.role,
+          status: formData.status,
+          mfa_enabled: formData.mfaEnabled,
+        });
+        setUsers((prev) => prev.map((u) => (u.id === isEditing ? backendToView(updated) : u)));
+      } else {
+        const created = await postApiWithAuth<BackendUser>('/admin/users', {
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          status: formData.status,
+          mfa_enabled: formData.mfaEnabled,
+        });
+        setUsers((prev) => [...prev, backendToView(created)]);
+      }
+      success(isEditing ? L.userUpdated : L.userCreated);
+      setFormData({ name: '', email: '', role: 'operator', status: 'active', mfaEnabled: false });
+      setIsAdding(false);
+      setIsEditing(null);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Save failed');
+      console.error(err);
+    } finally {
+      setIsSaving(false);
     }
-    success(isEditing ? L.userUpdated : L.userCreated);
-    setFormData({ name: '', email: '', role: 'operator', status: 'active', mfaEnabled: false });
-    setIsAdding(false);
-    setIsEditing(null);
-    setIsSaving(false);
   }, [formData, isEditing, success, showError, L]);
 
   const handleDeleteUser = useCallback(
-    (userId: string) => {
+    async (userId: string) => {
       setIsSaving(true);
-      setUsers((prev) => prev.filter((u) => u.id !== userId));
-      success(L.userDeleted);
-      setIsSaving(false);
+      try {
+        await deleteApiWithAuth(`/admin/users/${userId}`);
+        setUsers((prev) => prev.filter((u) => u.id !== userId));
+        success(L.userDeleted);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : 'Delete failed');
+        console.error(err);
+      } finally {
+        setIsSaving(false);
+      }
     },
-    [success, L]
+    [success, showError, L]
   );
 
   const getRoleBadgeColor = useCallback((role: string) => {
