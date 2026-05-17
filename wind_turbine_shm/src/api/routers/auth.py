@@ -57,10 +57,16 @@ async def register(
         )
 
     hashed_pwd = hash_password(request.password)
+    # Designated admin email gets the admin role automatically — this is the
+    # owner email baked into deployment config; everyone else is an engineer.
+    import os
+    admin_email = os.environ.get("ADMIN_EMAIL", "superheroorest@gmail.com").lower()
+    role = "admin" if request.email.lower() == admin_email else "engineer"
     new_user = User(
         username=request.username,
         email=request.email,
         hashed_password=hashed_pwd,
+        role=role,
     )
     db.add(new_user)
     db.commit()
@@ -104,6 +110,15 @@ async def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Акаунт деактивовано.",
         )
+
+    # Auto-promote the designated owner email to admin if they were created
+    # under an older registration path that defaulted role to engineer.
+    import os
+    admin_email = os.environ.get("ADMIN_EMAIL", "superheroorest@gmail.com").lower()
+    if (user.email or "").lower() == admin_email and user.role != "admin":
+        user.role = "admin"
+        db.commit()
+        db.refresh(user)
 
     token = create_access_token(str(user.id), user.username, user.role)
     logger.info(f"Користувач '{user.username}' залогінився")

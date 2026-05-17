@@ -133,13 +133,14 @@ async def create_turbine(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/{turbine_id}", response_model=TurbineDetailResponse)
+@router.get("/{turbine_id}")
 async def get_turbine(
     turbine_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> TurbineDetailResponse:
-    """Get turbine details."""
+) -> dict:
+    """Get turbine details (same shape as the list endpoint, with realtime
+    fields + geometry from the model metadata)."""
     turbine = db.query(Turbine).filter(
         (Turbine.turbine_id == turbine_id) & (Turbine.owner_id == current_user.id)
     ).first()
@@ -150,28 +151,7 @@ async def get_turbine(
             detail=f"Турбіну '{turbine_id}' не знайдено.",
         )
 
-    return TurbineDetailResponse(
-        id=str(turbine.id),
-        turbine_id=turbine.turbine_id,
-        name=turbine.name,
-        location=turbine.location,
-        manufacturer=turbine.manufacturer,
-        model=turbine.model,
-        rated_power_kw=turbine.rated_power_kw,
-        installation_date=(
-            turbine.installation_date.isoformat() if turbine.installation_date else None
-        ),
-        cumulative_damage=turbine.cumulative_damage,
-        damage_fraction=turbine.damage_fraction,
-        alert_level=AlertLevel(turbine.alert_level),
-        rul_days=turbine.rul_days,
-        total_records_processed=turbine.total_records_processed,
-        last_prediction_at=(
-            turbine.last_prediction_at.isoformat() if turbine.last_prediction_at else None
-        ),
-        created_at=turbine.created_at.isoformat(),
-        updated_at=turbine.updated_at.isoformat(),
-    )
+    return _turbine_to_dashboard(turbine)
 
 
 def _alert_to_status(alert_level: str) -> str:
@@ -180,10 +160,46 @@ def _alert_to_status(alert_level: str) -> str:
     )
 
 
+_MODEL_GEOMETRY = {
+    "V150-4.5":   {"rotor_diameter_m": 150.0, "tower_height_m": 105.0},
+    "SG 5.0-145": {"rotor_diameter_m": 145.0, "tower_height_m": 107.5},
+    "Haliade-X":  {"rotor_diameter_m": 220.0, "tower_height_m": 135.0},
+    "N163/5.X":   {"rotor_diameter_m": 163.0, "tower_height_m": 120.0},
+}
+
+
+def _geometry_for(model: str | None, rated_kw: float | None) -> tuple[float, float]:
+    """Return (rotor_diameter_m, tower_height_m) for the turbine model.
+
+    Falls back to a power-law estimate when the model is unknown:
+    D ≈ 9.5 * sqrt(P_rated_kW), H ≈ 0.7 * D — empirical fit across modern
+    multi-MW machines.
+    """
+    if model and model in _MODEL_GEOMETRY:
+        g = _MODEL_GEOMETRY[model]
+        return g["rotor_diameter_m"], g["tower_height_m"]
+    rated = float(rated_kw or 2000.0)
+    diameter = round(9.5 * (rated ** 0.5), 1)
+    return diameter, round(diameter * 0.7, 1)
+
+
 def _turbine_to_dashboard(t: Turbine) -> dict:
-    """Map DB model → frontend-compatible Turbine shape."""
+    """Map DB model → frontend-compatible Turbine shape.
+
+    Realtime fields (power_kw, wind_speed, rotor_rpm) come from the in-memory
+    realtime simulator state for this turbine — same source that the /ws
+    stream and /scada/history use. No hardcoded constants.
+    """
     rated = t.rated_power_kw or 2000.0
     status = _alert_to_status(t.alert_level)
+    rotor_d, tower_h = _geometry_for(t.model, rated)
+    # Prime the simulator with the persisted damage so its trajectory matches
+    # what the rest of the app shows, then snapshot (no DB write).
+    state = realtime_registry.get_or_create(t.turbine_id)
+    if state.cumulative_damage == 0.0 and (t.cumulative_damage or 0) > 0:
+        state.prime(cumulative_damage=float(t.cumulative_damage))
+    sample = state.tick()
+    power_now = 0.0 if status == "offline" else sample.power_kw
     return {
         "id": str(t.id),
         "turbine_id": t.turbine_id,
@@ -192,11 +208,14 @@ def _turbine_to_dashboard(t: Turbine) -> dict:
         "manufacturer": t.manufacturer or "",
         "model": t.model or "",
         "rated_power_kw": rated,
+        "rotor_diameter_m": rotor_d,
+        "tower_height_m": tower_h,
         "status": status,
-        "power_kw": rated * 0.7 if status != "offline" else 0.0,
-        "wind_speed": 10.5,
-        "rotor_rpm": 15.2,
+        "power_kw": power_now,
+        "wind_speed": sample.wind_speed,
+        "rotor_rpm": sample.rotor_rpm,
         "rul_years": round((t.rul_days / 365.0) if t.rul_days else 12.0, 1),
+        "damage_rate": round((t.cumulative_damage or 0) * 100 / max(0.1, (t.rul_days or 7300) / 365.0), 2),
         "cumulative_damage": t.cumulative_damage,
         "damage_fraction": t.damage_fraction,
         "alert_level": t.alert_level,

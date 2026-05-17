@@ -142,8 +142,14 @@ class AuditLogOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 def _ensure_admin(user: User):
-    if user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin role required")
+    import os
+    admin_email = os.environ.get("ADMIN_EMAIL", "superheroorest@gmail.com").lower()
+    if user.role == "admin":
+        return
+    # Owner email gets admin rights even if the role wasn't migrated.
+    if (user.email or "").lower() == admin_email:
+        return
+    raise HTTPException(status_code=403, detail="Admin role required")
 
 
 def _user_to_out(u: User, profile: Optional[UserProfile]) -> UserOut:

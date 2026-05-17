@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card } from '../../../components/ui/card';
 import { ReportBuilder } from '../../../components/reports/ReportBuilder';
 import { TrendingView } from '../../../components/reports/TrendingView';
@@ -8,12 +8,49 @@ import { ExportHistory } from '../../../components/reports/ExportHistory';
 import { ReportScheduling } from '../../../components/reports/ReportScheduling';
 import { FileText, TrendingUp, History, Clock } from 'lucide-react';
 import { useT } from '@/lib/i18n';
+import { getApiWithAuth } from '@/lib/api';
+
+interface BackendExportRecord {
+  id: number;
+  file_size_bytes?: number | null;
+  exported_at: string;
+}
+interface BackendSchedule {
+  id: number;
+  enabled: boolean;
+}
 
 type ReportsTab = 'builder' | 'trending' | 'history' | 'scheduling';
 
 export default function ReportsPage() {
   const t = useT();
   const [activeTab, setActiveTab] = useState<ReportsTab>('builder');
+  const [stats, setStats] = useState({
+    total: 0,
+    thisMonth: 0,
+    scheduled: 0,
+    storageMB: 0,
+  });
+
+  useEffect(() => {
+    Promise.all([
+      getApiWithAuth<BackendExportRecord[]>('/reports/exports').catch(() => []),
+      getApiWithAuth<BackendSchedule[]>('/reports/schedules').catch(() => []),
+    ]).then(([exports, schedules]) => {
+      const now = new Date();
+      const thisMonthCount = exports.filter((e) => {
+        const d = new Date(e.exported_at);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      }).length;
+      const totalBytes = exports.reduce((s, e) => s + (e.file_size_bytes || 0), 0);
+      setStats({
+        total: exports.length,
+        thisMonth: thisMonthCount,
+        scheduled: schedules.filter((s) => s.enabled).length,
+        storageMB: parseFloat((totalBytes / (1024 * 1024)).toFixed(1)),
+      });
+    });
+  }, []);
 
   const tabs = [
     {
@@ -106,19 +143,19 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="p-6 surface-2 hairline border">
             <p className="text-sm font-medium signal-live mb-2">{t('reports.total_generated')}</p>
-            <p className="text-3xl font-bold ink-1">142</p>
-            <p className="text-xs ink-2 mt-2">{t('reports.this_month', { n: 23 })}</p>
+            <p className="text-3xl font-bold ink-1">{stats.total}</p>
+            <p className="text-xs ink-2 mt-2">{t('reports.this_month', { n: stats.thisMonth })}</p>
           </Card>
 
           <Card className="p-6 surface-2 hairline border">
             <p className="text-sm font-medium signal-live mb-2">{t('reports.scheduled')}</p>
-            <p className="text-3xl font-bold signal-live">3</p>
+            <p className="text-3xl font-bold signal-live">{stats.scheduled}</p>
             <p className="text-xs signal-live mt-2">{t('reports.scheduled_freq')}</p>
           </Card>
 
           <Card className="p-6 surface-2 hairline border">
             <p className="text-sm font-medium ink-2 mb-2">{t('reports.storage_used')}</p>
-            <p className="text-3xl font-bold ink-1">47.2 MB</p>
+            <p className="text-3xl font-bold ink-1">{stats.storageMB} MB</p>
             <p className="text-xs ink-2 mt-2">{t('reports.storage_avail', { n: '1 GB' })}</p>
           </Card>
 

@@ -69,11 +69,14 @@ export function SHAPExplanation({ modelType = 'cnn', turbineId }: SHAPExplanatio
           throw new Error('Backend SHAP explanation missing');
         }
         const features: FeatureImportance[] = Object.entries(backend.shap_explanation).map(
-          ([key, value]) => ({
-            feature: key,
-            shap_value: value,
-            contribution: value >= 0 ? 'positive' : 'negative',
-          })
+          ([key, value]) => {
+            const numeric = typeof value === 'number' ? value : Number(value) || 0;
+            return {
+              feature: key,
+              shap_value: numeric,
+              contribution: numeric >= 0 ? 'positive' : 'negative',
+            };
+          }
         );
         setData({
           model_type: modelType === 'cnn' ? 'CNN Damage Classifier' : 'LSTM RUL Predictor',
