@@ -100,6 +100,34 @@ class TurbineRealtimeState:
         self.fault_mode = None
         self.v_mean = float(self.rng.weibull(self.wind.shape_k) * self.wind.scale_c)
 
+    def apply_user_config(
+        self,
+        rated_power_kw: Optional[float] = None,
+        rotor_diameter: Optional[float] = None,
+        tower_height: Optional[float] = None,
+        cut_in_speed: Optional[float] = None,
+        cut_out_speed: Optional[float] = None,
+        air_density: Optional[float] = None,
+    ) -> None:
+        """Update the simulator's physics parameters from user-saved overrides.
+
+        Called whenever the dashboard serializes this turbine, so any change
+        made on the Settings page propagates to the live power/wind/RPM
+        output on the very next tick.
+        """
+        if rated_power_kw is not None and rated_power_kw > 0:
+            self.params.rated_power_kw = float(rated_power_kw)
+        if rotor_diameter is not None and rotor_diameter > 0:
+            self.params.rotor_diameter = float(rotor_diameter)
+        if tower_height is not None and tower_height > 0:
+            self.params.hub_height = float(tower_height)
+        if cut_in_speed is not None and cut_in_speed > 0:
+            self.params.cut_in_speed = float(cut_in_speed)
+        if cut_out_speed is not None and cut_out_speed > 0:
+            self.params.cut_out_speed = float(cut_out_speed)
+        if air_density is not None and air_density > 0:
+            self.params.air_density = float(air_density)
+
     # --- physics helpers ---
 
     def _step_wind(self, dt_seconds: float) -> float:

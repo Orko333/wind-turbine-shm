@@ -230,10 +230,21 @@ def _turbine_to_dashboard(t: Turbine, db: Session | None = None) -> dict:
     rotor_d = float(cfg.get("rotor_diameter") or default_d)
     tower_h = float(cfg.get("tower_height") or default_h)
     # Prime the simulator with the persisted damage so its trajectory matches
-    # what the rest of the app shows, then snapshot (no DB write).
+    # what the rest of the app shows, then snapshot (no DB write). Also push
+    # the user's saved physics overrides (rated power, geometry, cut-in/out,
+    # air density) so the live power/wind/RPM output reflects the Settings
+    # page changes — not just the static labels.
     state = realtime_registry.get_or_create(t.turbine_id)
     if state.cumulative_damage == 0.0 and (t.cumulative_damage or 0) > 0:
         state.prime(cumulative_damage=float(t.cumulative_damage))
+    state.apply_user_config(
+        rated_power_kw=rated,
+        rotor_diameter=rotor_d,
+        tower_height=tower_h,
+        cut_in_speed=cfg.get("cut_in_speed"),
+        cut_out_speed=cfg.get("cut_out_speed"),
+        air_density=cfg.get("air_density"),
+    )
     sample = state.tick()
     power_now = 0.0 if status == "offline" else sample.power_kw
     return {
