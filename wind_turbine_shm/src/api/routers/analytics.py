@@ -203,29 +203,47 @@ async def get_rul_trend(
     # cluster of points all within a few minutes, which is what users see
     # right after a backend restart wipes the DB and a handful of fresh
     # /predict calls land in the same minute.
+    has_useful_history = False
     if len(predictions) >= 5:
-        span = (predictions[0].created_at - predictions[-1].created_at).total_seconds()
-        if span >= 3600:  # at least an hour of coverage
-            return {
-                "turbine_id": turbine_id,
-                "predictions": [
-                    {
-                        "timestamp": p.created_at.isoformat(),
-                        "rul_days": p.rul_days,
-                        "damage_index": p.damage_index,
-                        "alert_level": p.alert_level,
-                    }
-                    for p in reversed(predictions)
-                ],
-            }
+        try:
+            newest = predictions[0].created_at
+            oldest = predictions[-1].created_at
+            if newest and oldest:
+                span = abs((newest - oldest).total_seconds())
+                if span >= 3600:
+                    has_useful_history = True
+        except Exception as exc:
+            logger.warning(f"rul-trend span check failed for {turbine_id}: {exc}")
+            has_useful_history = False
+
+    if has_useful_history:
+        return {
+            "turbine_id": turbine_id,
+            "predictions": [
+                {
+                    "timestamp": p.created_at.isoformat() if p.created_at else "",
+                    "rul_days": p.rul_days,
+                    "damage_index": p.damage_index,
+                    "alert_level": p.alert_level,
+                }
+                for p in reversed(predictions)
+            ],
+        }
 
     # Few or temporally-clustered predictions — synthesise a trajectory.
     # Palmgren-Miner: damage grows linearly with cumulative load exposure.
     # We reconstruct the path by interpolating from 0 → current_damage across
     # the requested time window, assuming roughly steady operating duty.
 
-    current_damage = float(turbine.cumulative_damage or 0.0)
-    current_rul = float(turbine.rul_years or 20.0)
+    try:
+        current_damage = float(turbine.cumulative_damage or 0.0)
+    except Exception:
+        current_damage = 0.0
+    try:
+        current_rul = float(turbine.rul_years or 20.0)
+    except Exception:
+        current_rul = 20.0
+
     alert_level = "ok"
     if current_damage > 0.8:
         alert_level = "critical"
@@ -233,21 +251,20 @@ async def get_rul_trend(
         alert_level = "warning"
 
     now = datetime.now(timezone.utc)
-    n_points = min(days, 60)
+    n_points = min(int(days), 60)
+    if n_points < 2:
+        n_points = 2
     series = []
     for i in range(n_points):
-        # i=0 is the oldest point in the window, i=n_points-1 is "now"
         progress = i / max(1, n_points - 1)
-        # Slight quadratic curvature so the trajectory feels natural (load
-        # accumulates faster as components age).
         damage_at_i = current_damage * (0.4 * progress + 0.6 * progress ** 2)
         rul_at_i = max(0.1, current_rul + (current_rul * (1 - progress) * 0.05))
         ts = now - timedelta(days=(n_points - 1 - i))
         series.append(
             {
                 "timestamp": ts.isoformat(),
-                "rul_days": rul_at_i * 365.0,
-                "damage_index": damage_at_i,
+                "rul_days": float(rul_at_i * 365.0),
+                "damage_index": float(damage_at_i),
                 "alert_level": alert_level,
             }
         )
