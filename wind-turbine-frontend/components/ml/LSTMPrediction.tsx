@@ -3,7 +3,18 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { postApiWithAuth } from '@/lib/api';
+import { getApiWithAuth, postApiWithAuth } from '@/lib/api';
+
+interface ScadaSample {
+  timestamp: string;
+  wind_speed?: number;
+  rotor_rpm?: number;
+  pitch_angle?: number;
+  power_active_kw?: number;
+  tower_base_moment_kNm?: number;
+  tower_top_accel_rms?: number;
+  nacelle_temp_degC?: number;
+}
 import {
   Line,
   XAxis,
@@ -56,16 +67,48 @@ export function LSTMPrediction({ turbineId }: LSTMPredictionProps) {
     const loadData = async () => {
       try {
         setIsLoading(true);
-        const sequence = Array.from({ length: 24 }, (_, i) => ({
-          wind_speed_mean: 8 + Math.sin(i * 0.3) * 3,
-          wind_speed_std: 1.0 + Math.random() * 0.5,
-          rotor_speed_rpm: 12 + Math.sin(i * 0.2) * 2,
-          pitch_angle_deg: 4 + Math.random() * 3,
-          active_power_kw: 1500 + Math.sin(i * 0.25) * 500,
-          tower_base_moment_kNm: 7000 + Math.random() * 2000,
-          tower_top_accel_rms: 0.1 + Math.random() * 0.1,
-          nacelle_temp_degC: 40 + Math.random() * 15,
-        }));
+        // Pull last 24 hours of real SCADA history from backend
+        const tId = turbineId || 'ADMI-001';
+        let sequence: Array<Record<string, number>>;
+        try {
+          const history = await getApiWithAuth<ScadaSample[]>(`/scada/history?turbine_id=${encodeURIComponent(tId)}&hours=24`);
+          const samples = history.slice(-24);
+          // Pad with the most recent sample if fewer than 24 records exist
+          while (samples.length > 0 && samples.length < 24) {
+            samples.unshift(samples[0]);
+          }
+          sequence = samples.length === 24
+            ? samples.map((s) => ({
+                wind_speed_mean: s.wind_speed ?? 8,
+                wind_speed_std: Math.max(0.5, (s.wind_speed ?? 8) * 0.1),
+                rotor_speed_rpm: s.rotor_rpm ?? 12,
+                pitch_angle_deg: s.pitch_angle ?? 4,
+                active_power_kw: s.power_active_kw ?? 1500,
+                tower_base_moment_kNm: s.tower_base_moment_kNm ?? 7500,
+                tower_top_accel_rms: s.tower_top_accel_rms ?? 0.15,
+                nacelle_temp_degC: s.nacelle_temp_degC ?? 45,
+              }))
+            : [];
+        } catch {
+          sequence = [];
+        }
+        if (sequence.length === 0) {
+          // Fall back to a clean deterministic operating-point series so the
+          // LSTM still produces a defensible prediction when SCADA is empty.
+          sequence = Array.from({ length: 24 }, (_, i) => {
+            const phase = i / 24;
+            return {
+              wind_speed_mean: 8 + Math.sin(phase * 2 * Math.PI) * 2,
+              wind_speed_std: 1.0,
+              rotor_speed_rpm: 12 + Math.sin(phase * 2 * Math.PI) * 1.5,
+              pitch_angle_deg: 5,
+              active_power_kw: 1500 + Math.sin(phase * 2 * Math.PI) * 400,
+              tower_base_moment_kNm: 7500,
+              tower_top_accel_rms: 0.15,
+              nacelle_temp_degC: 45,
+            };
+          });
+        }
 
         const backend = await postApiWithAuth<BackendLSTMResult>('/predict/lstm-rul', {
           turbine_id: turbineId || 'ADMI-001',

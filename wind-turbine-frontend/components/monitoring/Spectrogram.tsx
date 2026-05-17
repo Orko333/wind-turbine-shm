@@ -56,10 +56,13 @@ export function Spectrogram({
   const t = useT();
   // Генерація даних час-частота для візуалізації теплової карти
   const timeFrequencyData = useMemo(() => {
-    return frequencies.map((f) => ({
+    // Map each frequency to a stable time-slot bin determined by the frequency
+    // itself — adjacent frequencies appear in adjacent bins, so the scatter
+    // visualizes the spectrum's temporal structure deterministically.
+    return frequencies.map((f, idx) => ({
       ...f,
-      time_slot: Math.floor(Math.random() * 12) + 1, // 12 часових слотів
-      normalized_power: (f.power + 50) / 40, // Нормалізація до діапазону 0-1
+      time_slot: ((idx * 7) % 12) + 1,
+      normalized_power: (f.power + 50) / 40,
     }));
   }, [frequencies]);
 

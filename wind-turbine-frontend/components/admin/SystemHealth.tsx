@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -17,85 +17,100 @@ interface ServiceStatus {
 
 interface PerformanceMetric {
   timestamp: string;
-  cpu: number;
-  memory: number;
-  database: number;
-  api: number;
+  api_latency: number;
+  audit_volume: number;
+  users: number;
 }
 
-const samplePerformance: PerformanceMetric[] = Array.from({ length: 24 }, (_, i) => ({
-  timestamp: new Date(Date.now() - (23 - i) * 60 * 60 * 1000).toISOString().slice(11, 16),
-  cpu: Math.random() * 40 + 20,
-  memory: Math.random() * 30 + 40,
-  database: Math.random() * 15 + 10,
-  api: Math.random() * 20 + 50,
-}));
+interface AdminHealthResponse {
+  api_status: string;
+  db_status: string;
+  users_total: number;
+  audit_records: number;
+  timestamp: string;
+}
+
+interface AuditLogRow {
+  id: number;
+  timestamp: string;
+}
 
 export function SystemHealth() {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [services, setServices] = useState<ServiceStatus[]>([
-    {
-      name: 'Сервер API',
-      status: 'healthy',
-      latency: 45,
-      uptime: 99.98,
-      lastChecked: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-    },
-    {
-      name: 'База даних',
-      status: 'healthy',
-      latency: 12,
-      uptime: 99.99,
-      lastChecked: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
-    },
-    {
-      name: 'WebSocket сервер',
-      status: 'healthy',
-      latency: 8,
-      uptime: 99.95,
-      lastChecked: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
-    },
-    {
-      name: 'Кеш-сервер',
-      status: 'healthy',
-      latency: 2,
-      uptime: 99.9,
-      lastChecked: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
-    },
-    {
-      name: 'Сервіс електронної пошти',
-      status: 'degraded',
-      latency: 2500,
-      uptime: 95.4,
-      lastChecked: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-    },
-  ]);
+  const [perfHistory, setPerfHistory] = useState<PerformanceMetric[]>([]);
+  const [usersTotal, setUsersTotal] = useState<number>(0);
+  const [auditRecords, setAuditRecords] = useState<number>(0);
+  const [services, setServices] = useState<ServiceStatus[]>([]);
 
-  const handleRefresh = useCallback(async () => {
+  const loadAll = useCallback(async () => {
     setIsRefreshing(true);
-    const start = Date.now();
     try {
-      await getApiWithAuth('/health');
-      const latency = Date.now() - start;
-      setServices((prev) =>
-        prev.map((service) =>
-          service.name === 'Сервер API'
-            ? { ...service, status: 'healthy', latency, lastChecked: new Date().toISOString() }
-            : { ...service, lastChecked: new Date().toISOString() }
-        )
+      const apiStart = Date.now();
+      const health = await getApiWithAuth<AdminHealthResponse>('/admin/health');
+      const apiLatency = Date.now() - apiStart;
+      setUsersTotal(health.users_total);
+      setAuditRecords(health.audit_records);
+
+      const dbStart = Date.now();
+      const logs = await getApiWithAuth<AuditLogRow[]>('/admin/audit-logs?limit=500');
+      const dbLatency = Date.now() - dbStart;
+
+      const nowIso = new Date().toISOString();
+      setServices([
+        {
+          name: 'Сервер API',
+          status: health.api_status === 'ok' ? 'healthy' : 'down',
+          latency: apiLatency,
+          uptime: 99.9,
+          lastChecked: nowIso,
+        },
+        {
+          name: 'База даних',
+          status: health.db_status === 'ok' ? 'healthy' : 'down',
+          latency: dbLatency,
+          uptime: 99.9,
+          lastChecked: nowIso,
+        },
+      ]);
+
+      // Real 24-hour audit-log volume histogram
+      const now = new Date();
+      const hourlyBuckets: number[] = new Array(24).fill(0);
+      for (const log of logs) {
+        const t = new Date(log.timestamp);
+        const hoursAgo = Math.floor((now.getTime() - t.getTime()) / 3_600_000);
+        if (hoursAgo >= 0 && hoursAgo < 24) {
+          hourlyBuckets[23 - hoursAgo]++;
+        }
+      }
+      setPerfHistory(
+        hourlyBuckets.map((count, i) => {
+          const ts = new Date(now.getTime() - (23 - i) * 3_600_000);
+          return {
+            timestamp: ts.toISOString().slice(11, 16),
+            api_latency: i === 23 ? apiLatency : 0,
+            audit_volume: count,
+            users: i === 23 ? health.users_total : 0,
+          };
+        })
       );
-    } catch {
-      setServices((prev) =>
-        prev.map((service) =>
-          service.name === 'Сервер API'
-            ? { ...service, status: 'down', lastChecked: new Date().toISOString() }
-            : { ...service, lastChecked: new Date().toISOString() }
-        )
-      );
+    } catch (err) {
+      console.error('SystemHealth load failed:', err);
+      setServices([
+        { name: 'Сервер API', status: 'down', latency: 0, uptime: 0, lastChecked: new Date().toISOString() },
+      ]);
     } finally {
       setIsRefreshing(false);
     }
   }, []);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
+
+  const handleRefresh = useCallback(() => {
+    loadAll();
+  }, [loadAll]);
 
   const getStatusIcon = useCallback((status: string) => {
     if (status === 'healthy') {
@@ -225,11 +240,11 @@ export function SystemHealth() {
 
       {/* Тренди продуктивності */}
       <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-6">Тренди продуктивності (24 години)</h3>
+        <h3 className="text-lg font-semibold mb-6">Активність audit-логу (24 години)</h3>
 
         <div className="surface-2 rounded-lg p-4">
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={samplePerformance}>
+            <LineChart data={perfHistory}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="timestamp" />
               <YAxis />
@@ -237,25 +252,9 @@ export function SystemHealth() {
               <Legend />
               <Line
                 type="monotone"
-                dataKey="cpu"
+                dataKey="audit_volume"
                 stroke="hsl(6 72% 62%)"
-                name="CPU %"
-                dot={false}
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="memory"
-                stroke="hsl(38 90% 58%)"
-                name="Пам'ять %"
-                dot={false}
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="database"
-                stroke="hsl(168 60% 56%)"
-                name="Відп. БД (ms)"
+                name="Подій / год"
                 dot={false}
                 isAnimationActive={false}
               />
@@ -267,45 +266,26 @@ export function SystemHealth() {
       {/* Використання ресурсів */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6">
-          <h4 className="font-semibold mb-4">Поточне використання ресурсів</h4>
+          <h4 className="font-semibold mb-4">Поточний стан бази даних</h4>
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Процесор</span>
-                <span className="text-sm font-bold ink-1">34%</span>
-              </div>
-              <div className="h-2 surface-3 rounded-full overflow-hidden">
-                <div className="h-full surface-20" style={{ width: '34%' }} />
+                <span className="text-sm font-medium">Усього користувачів</span>
+                <span className="text-sm font-bold ink-1">{usersTotal}</span>
               </div>
             </div>
-
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Пам'ять</span>
-                <span className="text-sm font-bold ink-1">62%</span>
-              </div>
-              <div className="h-2 surface-3 rounded-full overflow-hidden">
-                <div className="h-full surface-20" style={{ width: '62%' }} />
+                <span className="text-sm font-medium">Записів в audit-лозі</span>
+                <span className="text-sm font-bold ink-1">{auditRecords}</span>
               </div>
             </div>
-
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Диск</span>
-                <span className="text-sm font-bold ink-1">45%</span>
-              </div>
-              <div className="h-2 surface-3 rounded-full overflow-hidden">
-                <div className="h-full surface-20" style={{ width: '45%' }} />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Мережа</span>
-                <span className="text-sm font-bold ink-1">28%</span>
-              </div>
-              <div className="h-2 surface-3 rounded-full overflow-hidden">
-                <div className="h-full surface-20" style={{ width: '28%' }} />
+                <span className="text-sm font-medium">Подій за останні 24 год</span>
+                <span className="text-sm font-bold ink-1">
+                  {perfHistory.reduce((sum, p) => sum + p.audit_volume, 0)}
+                </span>
               </div>
             </div>
           </div>
