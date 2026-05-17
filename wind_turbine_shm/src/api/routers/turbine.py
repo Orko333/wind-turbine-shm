@@ -151,7 +151,7 @@ async def get_turbine(
             detail=f"Турбіну '{turbine_id}' не знайдено.",
         )
 
-    return _turbine_to_dashboard(turbine)
+    return _turbine_to_dashboard(turbine, db)
 
 
 def _alert_to_status(alert_level: str) -> str:
@@ -183,16 +183,52 @@ def _geometry_for(model: str | None, rated_kw: float | None) -> tuple[float, flo
     return diameter, round(diameter * 0.7, 1)
 
 
-def _turbine_to_dashboard(t: Turbine) -> dict:
+_CONFIG_NAMESPACE = "turbine-config"
+
+
+def _load_user_config(db: Session, owner_id, turbine_id_str: str) -> dict:
+    """Return the user-saved overrides for this turbine (namespace=turbine-config).
+
+    Settings page writes here via PUT /storage/turbine-config/{turbine_id}.
+    Empty dict if nothing saved or anything goes wrong.
+    """
+    try:
+        from .user_storage import UserStorage
+        row = (
+            db.query(UserStorage)
+            .filter(UserStorage.user_id == str(owner_id))
+            .filter(UserStorage.namespace == _CONFIG_NAMESPACE)
+            .filter(UserStorage.key == turbine_id_str)
+            .first()
+        )
+        if not row:
+            return {}
+        import json as _json
+        parsed = _json.loads(row.value)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception as exc:
+        logger.warning(f"turbine-config load failed for {turbine_id_str}: {exc}")
+        return {}
+
+
+def _turbine_to_dashboard(t: Turbine, db: Session | None = None) -> dict:
     """Map DB model → frontend-compatible Turbine shape.
 
     Realtime fields (power_kw, wind_speed, rotor_rpm) come from the in-memory
     realtime simulator state for this turbine — same source that the /ws
     stream and /scada/history use. No hardcoded constants.
+
+    If the owner has saved overrides via the Settings page (stored in
+    user_storage under namespace=turbine-config), those values replace the
+    defaults so /turbines/{id} and every page that depends on it picks them
+    up automatically.
     """
-    rated = t.rated_power_kw or 2000.0
+    cfg = _load_user_config(db, t.owner_id, t.turbine_id) if db is not None else {}
+    rated = float(cfg.get("rated_power_kw") or t.rated_power_kw or 2000.0)
     status = _alert_to_status(t.alert_level)
-    rotor_d, tower_h = _geometry_for(t.model, rated)
+    default_d, default_h = _geometry_for(t.model, rated)
+    rotor_d = float(cfg.get("rotor_diameter") or default_d)
+    tower_h = float(cfg.get("tower_height") or default_h)
     # Prime the simulator with the persisted damage so its trajectory matches
     # what the rest of the app shows, then snapshot (no DB write).
     state = realtime_registry.get_or_create(t.turbine_id)
@@ -210,6 +246,12 @@ def _turbine_to_dashboard(t: Turbine) -> dict:
         "rated_power_kw": rated,
         "rotor_diameter_m": rotor_d,
         "tower_height_m": tower_h,
+        "cut_in_speed": float(cfg.get("cut_in_speed", 3.0)),
+        "cut_out_speed": float(cfg.get("cut_out_speed", 25.0)),
+        "material_young_modulus": float(cfg.get("material_young_modulus", 210000.0)),
+        "material_density": float(cfg.get("material_density", 7850.0)),
+        "material_yield_stress": float(cfg.get("material_yield_stress", 250.0)),
+        "air_density": float(cfg.get("air_density", 1.225)),
         "status": status,
         "power_kw": power_now,
         "wind_speed": sample.wind_speed,
@@ -288,7 +330,7 @@ async def list_turbines(
         q = q.filter(Turbine.location.ilike(f"%{location}%"))
     total = q.count()
     turbines = q.offset((page - 1) * page_size).limit(page_size).all()
-    return {"data": [_turbine_to_dashboard(t) for t in turbines], "total": total}
+    return {"data": [_turbine_to_dashboard(t, db) for t in turbines], "total": total}
 
 
 @router.patch("/{turbine_id}", response_model=TurbineDetailResponse)

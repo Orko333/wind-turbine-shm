@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import { useState, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTurbineData } from '@/hooks/useTurbineData';
-import { patchApiWithAuth } from '@/lib/api';
+import { patchApiWithAuth, putApiWithAuth, getApiWithAuth } from '@/lib/api';
 import { useRole } from '@/hooks/useRole';
 import { useToast } from '@/hooks/useToast';
 import { Card } from '@/components/ui/card';
@@ -42,7 +42,7 @@ function settingsKey(id: string) {
   return `turbine-settings:${id}`;
 }
 
-function loadSettings(id: string): Partial<SettingsForm> | null {
+function loadLocalSettings(id: string): Partial<SettingsForm> | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(settingsKey(id));
@@ -52,8 +52,12 @@ function loadSettings(id: string): Partial<SettingsForm> | null {
   }
 }
 
-function saveSettings(id: string, data: SettingsForm) {
-  localStorage.setItem(settingsKey(id), JSON.stringify(data));
+function cacheLocalSettings(id: string, data: SettingsForm) {
+  try {
+    localStorage.setItem(settingsKey(id), JSON.stringify(data));
+  } catch {
+    /* localStorage might be blocked */
+  }
 }
 
 export default function SettingsPage() {
@@ -73,28 +77,50 @@ export default function SettingsPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<SettingsForm>(DEFAULT_FORM);
+  const [backendConfig, setBackendConfig] = useState<Partial<SettingsForm> | null>(null);
 
-  // Build the canonical form values from turbine + stored overrides
-  const buildFromTurbine = useCallback((): SettingsForm => {
-    const stored = loadSettings(turbineId) || {};
-    return {
-      tower_height: stored.tower_height ?? turbine?.tower_height ?? 0,
-      rotor_diameter: stored.rotor_diameter ?? turbine?.rotor_diameter ?? 0,
-      rated_power_kw: stored.rated_power_kw ?? turbine?.rated_power_kw ?? 0,
-      material_young_modulus: stored.material_young_modulus ?? DEFAULT_FORM.material_young_modulus,
-      material_density: stored.material_density ?? DEFAULT_FORM.material_density,
-      material_yield_stress: stored.material_yield_stress ?? DEFAULT_FORM.material_yield_stress,
-      air_density: stored.air_density ?? DEFAULT_FORM.air_density,
-      cut_in_speed: stored.cut_in_speed ?? DEFAULT_FORM.cut_in_speed,
-      cut_out_speed: stored.cut_out_speed ?? DEFAULT_FORM.cut_out_speed,
+  // Fetch any user-saved overrides from the backend (namespace: turbine-config).
+  useEffect(() => {
+    if (!turbineId) return;
+    let cancelled = false;
+    getApiWithAuth<Partial<SettingsForm>>(`/storage/turbine-config/${turbineId}`)
+      .then((data) => {
+        if (cancelled) return;
+        setBackendConfig(data || {});
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // 404 = nothing saved yet; treat as empty so we fall back to defaults.
+        setBackendConfig({});
+      });
+    return () => {
+      cancelled = true;
     };
-  }, [turbineId, turbine]);
+  }, [turbineId]);
+
+  // Build the canonical form values from turbine + backend overrides
+  // (preferred) + localStorage (offline fallback).
+  const buildFromTurbine = useCallback((): SettingsForm => {
+    const local = loadLocalSettings(turbineId) || {};
+    const remote = backendConfig || {};
+    return {
+      tower_height: remote.tower_height ?? local.tower_height ?? turbine?.tower_height ?? 0,
+      rotor_diameter: remote.rotor_diameter ?? local.rotor_diameter ?? turbine?.rotor_diameter ?? 0,
+      rated_power_kw: remote.rated_power_kw ?? local.rated_power_kw ?? turbine?.rated_power_kw ?? 0,
+      material_young_modulus: remote.material_young_modulus ?? local.material_young_modulus ?? DEFAULT_FORM.material_young_modulus,
+      material_density: remote.material_density ?? local.material_density ?? DEFAULT_FORM.material_density,
+      material_yield_stress: remote.material_yield_stress ?? local.material_yield_stress ?? DEFAULT_FORM.material_yield_stress,
+      air_density: remote.air_density ?? local.air_density ?? DEFAULT_FORM.air_density,
+      cut_in_speed: remote.cut_in_speed ?? local.cut_in_speed ?? DEFAULT_FORM.cut_in_speed,
+      cut_out_speed: remote.cut_out_speed ?? local.cut_out_speed ?? DEFAULT_FORM.cut_out_speed,
+    };
+  }, [turbineId, turbine, backendConfig]);
 
   // Sync form when turbine data arrives or turbineId changes
   useEffect(() => {
-    if (!turbine || isEditing) return;
+    if (!turbine || isEditing || backendConfig === null) return;
     setFormData(buildFromTurbine());
-  }, [turbine, isEditing, buildFromTurbine]);
+  }, [turbine, isEditing, buildFromTurbine, backendConfig]);
 
   const handleInputChange = useCallback(
     (field: keyof SettingsForm, value: string | number) => {
@@ -114,16 +140,23 @@ export default function SettingsPage() {
 
     setIsSaving(true);
     try {
-      // rated_power_kw is a real backend column — persist via PATCH so it
-      // survives across sessions and devices. Everything else (tower height,
-      // material props, cut-in/out) doesn't have a backend column yet, so
-      // we still keep those in localStorage as a session-level override.
+      // rated_power_kw has a real backend column — PATCH it. Everything
+      // else (tower/rotor geometry, material props, cut-in/out, air
+      // density) lives in user_storage under namespace=turbine-config and
+      // is merged into /turbines/{id} responses by the backend serializer,
+      // so it affects every page that depends on this turbine — not just
+      // this Settings view.
       await patchApiWithAuth(`/turbines/${turbineId}`, {
         rated_power_kw: formData.rated_power_kw,
       });
-      saveSettings(turbineId, formData);
+      await putApiWithAuth(`/storage/turbine-config/${turbineId}`, {
+        value: formData,
+      });
+      cacheLocalSettings(turbineId, formData);
+      setBackendConfig(formData);
       queryClient.invalidateQueries({ queryKey: ['turbine', turbineId] });
       queryClient.invalidateQueries({ queryKey: ['turbines'] });
+      queryClient.invalidateQueries({ queryKey: ['turbine-list'] });
       success(t('turbines.settings_saved'));
       setIsEditing(false);
     } catch (err) {
