@@ -1,10 +1,10 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTurbineData } from '@/hooks/useTurbineData';
-import { patchApiWithAuth, putApiWithAuth, getApiWithAuth } from '@/lib/api';
+import { patchApiWithAuth, putApiWithAuth, getApiWithAuth, deleteApiWithAuth } from '@/lib/api';
 import { useRole } from '@/hooks/useRole';
 import { useToast } from '@/hooks/useToast';
 import { Card } from '@/components/ui/card';
@@ -137,6 +137,13 @@ export default function SettingsPage() {
       showError(t('turbines.no_permission_edit'));
       return;
     }
+    if (hasValidationErrors) {
+      const first = Object.entries(validationErrors)[0];
+      if (first) {
+        showError(t('turbines.invalid_value', { field: first[0], range: first[1] }));
+      }
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -171,6 +178,67 @@ export default function SettingsPage() {
     setFormData(buildFromTurbine());
     setIsEditing(false);
   }, [buildFromTurbine]);
+
+  const handleResetDefaults = useCallback(async () => {
+    if (!canEdit) {
+      showError(t('turbines.no_permission_edit'));
+      return;
+    }
+    if (!confirm(t('turbines.reset_confirm'))) {
+      return;
+    }
+    setIsSaving(true);
+    try {
+      try {
+        await deleteApiWithAuth(`/storage/turbine-config/${turbineId}`);
+      } catch {
+        /* nothing saved yet — that's fine */
+      }
+      try {
+        localStorage.removeItem(settingsKey(turbineId));
+      } catch {
+        /* ignore */
+      }
+      setBackendConfig({});
+      queryClient.invalidateQueries({ queryKey: ['turbine', turbineId] });
+      queryClient.invalidateQueries({ queryKey: ['turbines'] });
+      queryClient.invalidateQueries({ queryKey: ['turbine-list'] });
+      success(t('turbines.reset_success'));
+      setIsEditing(false);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Reset failed');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [turbineId, canEdit, showError, success, t, queryClient]);
+
+  // Sanity ranges — must mirror backend _CONFIG_BOUNDS so the UI rejects
+  // values that the backend would silently drop.
+  const FIELD_RANGES: Record<keyof SettingsForm, [number, number, string]> = {
+    tower_height:           [20, 250, 'm'],
+    rotor_diameter:         [30, 250, 'm'],
+    rated_power_kw:         [100, 20000, 'kW'],
+    cut_in_speed:           [0.5, 8, 'm/s'],
+    cut_out_speed:          [15, 35, 'm/s'],
+    material_young_modulus: [1e4, 5e5, 'MPa'],
+    material_density:       [1000, 20000, 'kg/m³'],
+    material_yield_stress:  [50, 1500, 'MPa'],
+    air_density:            [0.5, 2, 'kg/m³'],
+  };
+
+  const validationErrors = useMemo(() => {
+    const errors: Partial<Record<keyof SettingsForm, string>> = {};
+    (Object.keys(FIELD_RANGES) as Array<keyof SettingsForm>).forEach((key) => {
+      const [lo, hi] = FIELD_RANGES[key];
+      const v = formData[key];
+      if (typeof v !== 'number' || Number.isNaN(v) || v < lo || v > hi) {
+        errors[key] = `${lo} – ${hi}`;
+      }
+    });
+    return errors;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData]);
+  const hasValidationErrors = Object.keys(validationErrors).length > 0;
 
   if (isLoading) {
     return (
@@ -374,7 +442,22 @@ export default function SettingsPage() {
 
       {/* Save/Cancel Buttons */}
       {isEditing && (
-        <Card className="p-6 surface-2 hairline border">
+        <Card className="p-6 surface-2 hairline border space-y-3">
+          {hasValidationErrors && (
+            <div className="flex items-start gap-2 text-sm signal-crit">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div>
+                {t('turbines.invalid_summary')}
+                <ul className="mt-1 ink-2 list-disc pl-5">
+                  {Object.entries(validationErrors).map(([field, range]) => (
+                    <li key={field}>
+                      <span className="font-mono">{field}</span>: {range}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AlertCircle className="w-5 h-5 signal-live" />
@@ -385,6 +468,14 @@ export default function SettingsPage() {
             <div className="flex gap-2">
               <Button
                 variant="outline"
+                onClick={handleResetDefaults}
+                disabled={isSaving}
+                title={t('turbines.reset_tooltip')}
+              >
+                {t('turbines.reset_defaults')}
+              </Button>
+              <Button
+                variant="outline"
                 onClick={handleCancel}
                 disabled={isSaving}
               >
@@ -392,7 +483,7 @@ export default function SettingsPage() {
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || hasValidationErrors}
               >
                 {isSaving ? t('turbines.saving') : t('turbines.save_settings')}
               </Button>

@@ -271,7 +271,7 @@ export function TrendingView() {
                   ]}
                   tickFormatter={(v: number) => v.toFixed(1)}
                 />
-                <Tooltip formatter={(v: number) => v.toFixed(2)} />
+                <Tooltip formatter={(v) => (typeof v === 'number' ? v.toFixed(2) : String(v))} />
                 <Legend />
                 <Line
                   type="monotone"

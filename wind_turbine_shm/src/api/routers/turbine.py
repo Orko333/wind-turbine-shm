@@ -186,11 +186,58 @@ def _geometry_for(model: str | None, rated_kw: float | None) -> tuple[float, flo
 _CONFIG_NAMESPACE = "turbine-config"
 
 
+_CONFIG_BOUNDS = {
+    # field: (min_valid, max_valid)
+    "tower_height":         (20.0, 250.0),     # m
+    "rotor_diameter":       (30.0, 250.0),     # m
+    "rated_power_kw":       (100.0, 20000.0),  # kW
+    "cut_in_speed":         (0.5, 8.0),        # m/s
+    "cut_out_speed":        (15.0, 35.0),      # m/s
+    "material_young_modulus": (1.0e4, 5.0e5),  # MPa
+    "material_density":     (1000.0, 20000.0), # kg/m^3
+    "material_yield_stress":(50.0, 1500.0),    # MPa
+    "air_density":          (0.5, 2.0),        # kg/m^3
+}
+
+
+def _sanitize_config(raw: dict) -> dict:
+    """Drop any field whose value is outside the physically-plausible range.
+
+    Users have managed to save things like cut_in_speed=30 m/s (no turbine
+    ever starts because wind never reaches 30) or material_density=78500
+    kg/m^3 (10x real steel). The serializer would then surface those values
+    everywhere and the turbine would output 0 kW with no explanation. Now
+    we silently drop nonsense values so the defaults take over until the
+    user saves a sensible one.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    clean: dict = {}
+    for key, value in raw.items():
+        bounds = _CONFIG_BOUNDS.get(key)
+        if bounds is None:
+            clean[key] = value
+            continue
+        try:
+            num = float(value)
+        except (TypeError, ValueError):
+            continue
+        lo, hi = bounds
+        if not (lo <= num <= hi):
+            logger.warning(
+                f"turbine-config: {key}={num} outside [{lo}, {hi}] — ignoring"
+            )
+            continue
+        clean[key] = num
+    return clean
+
+
 def _load_user_config(db: Session, owner_id, turbine_id_str: str) -> dict:
     """Return the user-saved overrides for this turbine (namespace=turbine-config).
 
     Settings page writes here via PUT /storage/turbine-config/{turbine_id}.
-    Empty dict if nothing saved or anything goes wrong.
+    Empty dict if nothing saved or anything goes wrong. Out-of-range values
+    are silently dropped so the defaults take over.
     """
     try:
         from .user_storage import UserStorage
@@ -205,7 +252,7 @@ def _load_user_config(db: Session, owner_id, turbine_id_str: str) -> dict:
             return {}
         import json as _json
         parsed = _json.loads(row.value)
-        return parsed if isinstance(parsed, dict) else {}
+        return _sanitize_config(parsed if isinstance(parsed, dict) else {})
     except Exception as exc:
         logger.warning(f"turbine-config load failed for {turbine_id_str}: {exc}")
         return {}
