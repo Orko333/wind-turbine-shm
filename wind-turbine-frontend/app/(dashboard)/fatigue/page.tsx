@@ -143,6 +143,14 @@ function computeRainflowFromFleet(avgDamage: number, turbineCount: number): Arra
   }));
 }
 
+interface GlobalTurbineConfig {
+  air_density?: number;
+  gravity?: number;
+  safety_factor?: number;
+  design_life_years?: number;
+  inspection_interval_months?: number;
+}
+
 export default function FatiguePage() {
   const t = useT();
   const { locale } = useLocale();
@@ -156,6 +164,16 @@ export default function FatiguePage() {
   });
   const [filterBy, setFilterBy] = useState<'all' | 'critical' | 'warning'>('all');
   const [refreshTick, setRefreshTick] = useState(0);
+  const [globalConfig, setGlobalConfig] = useState<GlobalTurbineConfig>({});
+
+  // Pull the user's global turbine settings (config:turbine-settings) so the
+  // design life and safety factor they configured on /config actually drive
+  // this page's projections instead of being decorative form inputs.
+  useEffect(() => {
+    getApiWithAuth<GlobalTurbineConfig>('/storage/config/turbine-settings')
+      .then((cfg) => setGlobalConfig(cfg || {}))
+      .catch(() => setGlobalConfig({}));
+  }, []);
 
   // Load дані on mount and date range change
   useEffect(() => {
@@ -172,15 +190,18 @@ export default function FatiguePage() {
         // pick a past date to see what it looked like then.
         const yearMs = 365.25 * 24 * 60 * 60 * 1000;
         const yearsFromNow = (dateRange.to.getTime() - Date.now()) / yearMs;
+        const designLife = globalConfig.design_life_years ?? 20.0;
+        const safetyFactor = globalConfig.safety_factor ?? 1.0;
         const projected = turbines.map((tb) => {
-          const designLife = 20.0;
           const ageYears = Math.max(0.5, designLife - (tb.rul_years ?? 12));
-          const damageRatePerYear = (tb.cumulative_damage ?? 0) / ageYears;
+          // Safety factor scales the assumed damage rate — higher factor
+          // means we project pessimistically (faster damage accrual).
+          const damageRatePerYear = (tb.cumulative_damage ?? 0) / ageYears * safetyFactor;
           const dmg = Math.max(
             0,
             Math.min(1, (tb.cumulative_damage ?? 0) + damageRatePerYear * yearsFromNow)
           );
-          const rul = Math.max(0, (tb.rul_years ?? 12) - yearsFromNow);
+          const rul = Math.max(0, ((tb.rul_years ?? 12) / safetyFactor) - yearsFromNow);
           return { ...tb, projected_damage: dmg, projected_rul: rul };
         });
 
@@ -222,9 +243,8 @@ export default function FatiguePage() {
           // Average projected damage at this point in the timeline.
           const yearsAtPoint = (d.getTime() - Date.now()) / yearMs;
           const avgAtPoint = projected.reduce((acc, t) => {
-            const designLife = 20.0;
             const ageYears = Math.max(0.5, designLife - (t.rul_years ?? 12));
-            const rate = (t.cumulative_damage ?? 0) / ageYears;
+            const rate = (t.cumulative_damage ?? 0) / ageYears * safetyFactor;
             return acc + Math.max(0, Math.min(1, (t.cumulative_damage ?? 0) + rate * yearsAtPoint));
           }, 0) / projected.length;
           return {
@@ -262,7 +282,7 @@ export default function FatiguePage() {
     };
 
     loadData();
-  }, [dateRange, refreshTick, success, showError, t]);
+  }, [dateRange, refreshTick, success, showError, t, locale, globalConfig]);
 
   // Export дані
   const handleExportData = useCallback(
