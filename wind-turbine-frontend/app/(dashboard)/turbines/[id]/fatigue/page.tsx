@@ -19,17 +19,9 @@ import { useTurbineData } from '@/hooks/useTurbineData';
 import { getApiWithAuth } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useT } from '@/lib/i18n';
+import { DamageForecast } from '@/components/fatigue/DamageForecast';
+import { useT, useLocale } from '@/lib/i18n';
 
-interface RulTrendPoint {
-  timestamp: string;
-  damage_index: number;
-  rul_days: number | null;
-}
-interface RulTrendResponse {
-  turbine_id: string;
-  predictions: RulTrendPoint[];
-}
 interface ScadaSample {
   timestamp: string;
   tower_moment_knm: number;
@@ -40,33 +32,30 @@ interface ScadaHistoryResponse {
   samples: ScadaSample[];
 }
 
-// S-N curve uses the material's Wöhler equation, not data — it's a known
-// physics relation (stress range vs cycles to failure for steel S355).
-// Keep computed client-side; the *shape* doesn't depend on telemetry.
+// Крива Велера (S-N) — фізична залежність, не телеметрія. Біномна модель
+// класу FAT 71 для зварного з'єднання башти S355 (записка, ф-ли 2.1–2.2):
+// log N = log C − m·log Δσ, коліно при N = 10^7.
 function snCurve() {
-  return Array.from({ length: 20 }, (_, i) => ({
-    cycles: Math.pow(10, i * 0.25),
-    stress: 300 / Math.pow(Math.pow(10, i * 0.25), 0.3),
-  }));
+  const logC1 = 12.592, m1 = 3, logC2 = 16.301, m2 = 5, nKnee = 1e7;
+  return Array.from({ length: 24 }, (_, i) => {
+    const logN = 4 + (i * 5) / 23; // N від 10^4 до 10^9
+    const N = Math.pow(10, logN);
+    const stress = N <= nKnee
+      ? Math.pow(10, (logC1 - logN) / m1)
+      : Math.pow(10, (logC2 - logN) / m2);
+    return { cycles: N, stress };
+  });
 }
 
 export default function FatiguePage() {
   const t = useT();
+  const { locale } = useLocale();
   const params = useParams();
   const turbineId = params.id as string;
 
   const { turbine, isLoading } = useTurbineData({
     turbineId,
     enabled: Boolean(turbineId),
-  });
-
-  // Real damage trajectory from backend RUL trend (each prediction has
-  // damage_index which becomes cumulative damage curve)
-  const { data: rulTrend } = useQuery({
-    queryKey: ['rul-trend', turbineId, 'fatigue'],
-    queryFn: () => getApiWithAuth<RulTrendResponse>(`/analytics/turbine/${turbineId}/rul-trend?days=24`),
-    enabled: Boolean(turbineId),
-    staleTime: 5 * 60_000,
   });
 
   // Real SCADA history for rainflow-equivalent: bucket tower moment ranges
@@ -76,16 +65,6 @@ export default function FatiguePage() {
     enabled: Boolean(turbineId),
     staleTime: 60_000,
   });
-
-  const damageData = useMemo(() => {
-    const preds = rulTrend?.predictions ?? [];
-    if (!preds.length) return [];
-    return preds.map((p, i) => ({
-      day: i,
-      cumulative: p.damage_index * 100,
-      daily: i === 0 ? 0 : Math.max(0, (p.damage_index - (preds[i - 1]?.damage_index ?? 0)) * 100),
-    }));
-  }, [rulTrend]);
 
   const rainflowData = useMemo(() => {
     const samples = scadaHistory?.samples ?? [];
@@ -113,15 +92,16 @@ export default function FatiguePage() {
 
   const snCurveData = useMemo(() => snCurve(), []);
 
-  // Forecast band derived from real damage trajectory: project current slope
+  // RUL countdown in YEARS: залишковий ресурс спадає на 1 рік за рік
+  // експлуатації й сягає 0 через `rul` років. Довірча смуга ±1.5 року.
   const rulForecast = useMemo(() => {
     const rul = turbine?.rul_years || 0;
-    const months = Array.from({ length: 24 }, (_, i) => i);
-    return months.map((month) => ({
-      month,
-      rul: Math.max(0.1, rul - (month * rul) / 24),
-      confidence_upper: Math.max(0.1, rul + 1.5 - (month * rul) / 24),
-      confidence_lower: Math.max(0.1, rul - 1.5 - (month * rul) / 24),
+    const horizon = Math.max(2, Math.ceil(rul));
+    return Array.from({ length: horizon + 1 }, (_, year) => ({
+      year,
+      rul: Math.max(0, rul - year),
+      confidence_upper: Math.max(0, rul + 1.5 - year),
+      confidence_lower: Math.max(0, rul - 1.5 - year),
     }));
   }, [turbine?.rul_years]);
 
@@ -144,26 +124,15 @@ export default function FatiguePage() {
 
   return (
     <div className="space-y-6">
-      {/* Damage vs Time */}
+      {/* Накопичене пошкодження за роки — фізична проекція Пальмгрена–Майнера */}
       <Card className="p-6">
-        <h3 className="font-semibold mb-4">{t('turbines.cumulative_damage_time')}</h3>
-        <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={damageData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="day" label={{ value: 'Days', position: 'insideBottomRight', offset: -5 }} />
-            <YAxis label={{ value: 'Damage (%)', angle: -90, position: 'insideLeft' }} />
-            <Tooltip />
-            <Legend />
-            <Line
-              type="monotone"
-              dataKey="cumulative"
-              stroke="#ef4444"
-              dot={false}
-              name={t('turbines.cumulative_damage')}
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        <DamageForecast
+          turbineId={turbineId}
+          currentDamage={(turbine.damage_rate ?? 0) / 100}
+          rulYears={turbine.rul_years ?? 0}
+          designLifeYears={20}
+          ratedPowerMw={turbine.rated_power_kw ? turbine.rated_power_kw / 1000 : undefined}
+        />
       </Card>
 
       {/* RUL Forecast with Confidence Band */}
@@ -172,8 +141,8 @@ export default function FatiguePage() {
         <ResponsiveContainer width="100%" height={350}>
           <LineChart data={rulForecast}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" label={{ value: 'Months', position: 'insideBottomRight', offset: -5 }} />
-            <YAxis label={{ value: 'Years', angle: -90, position: 'insideLeft' }} />
+            <XAxis dataKey="year" label={{ value: locale === 'uk' ? 'Роки вперед' : 'Years ahead', position: 'insideBottomRight', offset: -5 }} />
+            <YAxis label={{ value: locale === 'uk' ? 'RUL, років' : 'RUL, years', angle: -90, position: 'insideLeft' }} />
             <Tooltip />
             <Legend />
             <Line

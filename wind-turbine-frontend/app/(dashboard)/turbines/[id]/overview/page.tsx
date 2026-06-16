@@ -19,7 +19,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, Zap, Wind, Gauge } from 'lucide-react';
-import { useT } from '@/lib/i18n';
+import { useT, useLocale } from '@/lib/i18n';
 
 interface ScadaSample {
   timestamp: string;
@@ -31,19 +31,10 @@ interface ScadaHistoryResponse {
   samples: ScadaSample[];
 }
 
-interface RulTrendPoint {
-  timestamp: string;
-  rul_days: number | null;
-  damage_index: number;
-  alert_level: string;
-}
-interface RulTrendResponse {
-  turbine_id: string;
-  predictions: RulTrendPoint[];
-}
 
 export default function OverviewPage() {
   const t = useT();
+  const { locale } = useLocale();
   const params = useParams();
   const turbineId = params.id as string;
 
@@ -85,27 +76,16 @@ export default function OverviewPage() {
     }));
   }, [scadaHistory]);
 
-  // RUL trend from real backend analytics
-  const { data: rulTrend } = useQuery({
-    queryKey: ['rul-trend', turbineId],
-    queryFn: () => getApiWithAuth<RulTrendResponse>(`/analytics/turbine/${turbineId}/rul-trend?days=24`),
-    enabled: Boolean(turbineId),
-    staleTime: 5 * 60_000,
-  });
-
+  // Прогноз RUL у РОКАХ: ресурс спадає на 1 рік за рік експлуатації й сягає 0
+  // через `rul` років; смуга невизначеності ±10 %.
   const rulForecastData = useMemo(() => {
-    const points = rulTrend?.predictions ?? [];
-    if (!points.length) return [];
-    return points.map((p, i) => {
-      const rulYears = (p.rul_days ?? (1 - p.damage_index) * 365 * 20) / 365;
-      return {
-        month: i,
-        rul: Math.max(0, rulYears),
-        upper: Math.max(0, rulYears * 1.1),
-        lower: Math.max(0, rulYears * 0.9),
-      };
+    const rul = turbine?.rul_years ?? 0;
+    const horizon = Math.max(2, Math.ceil(rul));
+    return Array.from({ length: horizon + 1 }, (_, year) => {
+      const v = Math.max(0, rul - year);
+      return { year, rul: v, upper: v * 1.1, lower: v * 0.9 };
     });
-  }, [rulTrend]);
+  }, [turbine?.rul_years]);
 
   const recentAlerts = alerts.slice(0, 3);
 
@@ -273,9 +253,9 @@ export default function OverviewPage() {
         </ResponsiveContainer>
       </Card>
 
-      {/* RUL Forecast */}
+      {/* RUL Forecast (years) */}
       <Card className="p-6">
-        <h3 className="font-semibold mb-4">{t('turbines.rul_forecast_24m')}</h3>
+        <h3 className="font-semibold mb-4">{locale === 'uk' ? 'Прогноз залишкового ресурсу (роки)' : 'Remaining useful life forecast (years)'}</h3>
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={rulForecastData}>
             <defs>
@@ -285,8 +265,8 @@ export default function OverviewPage() {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" label={{ value: 'Months', position: 'insideBottomRight', offset: -5 }} />
-            <YAxis label={{ value: 'Years', angle: -90, position: 'insideLeft' }} />
+            <XAxis dataKey="year" label={{ value: locale === 'uk' ? 'Роки вперед' : 'Years ahead', position: 'insideBottomRight', offset: -5 }} />
+            <YAxis label={{ value: locale === 'uk' ? 'RUL, років' : 'RUL, years', angle: -90, position: 'insideLeft' }} />
             <Tooltip />
             <Legend />
             <Area
