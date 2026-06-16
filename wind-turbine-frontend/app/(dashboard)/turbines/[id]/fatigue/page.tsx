@@ -128,7 +128,7 @@ export default function FatiguePage() {
       <Card className="p-6">
         <DamageForecast
           turbineId={turbineId}
-          currentDamage={(turbine.damage_rate ?? 0) / 100}
+          currentDamage={turbine.cumulative_damage ?? turbine.damage_fraction ?? 0}
           rulYears={turbine.rul_years ?? 0}
           designLifeYears={20}
           ratedPowerMw={turbine.rated_power_kw ? turbine.rated_power_kw / 1000 : undefined}

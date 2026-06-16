@@ -111,7 +111,7 @@ export default function OverviewPage() {
   const windSpeed = currentData?.wind_speed ?? turbine.wind_speed ?? 0;
   const rotorRPM = currentData?.rotor_rpm ?? turbine.rotor_rpm ?? 0;
   const ratedPower = turbine.rated_power_kw ?? 1;
-  const damageRate = turbine.damage_rate ?? 0;
+  const cumulativeDamage = turbine.cumulative_damage ?? turbine.damage_fraction ?? 0;
   const rulYears = turbine.rul_years ?? 0;
 
   return (
@@ -187,7 +187,7 @@ export default function OverviewPage() {
                 {t('turbines.cumulative_damage')}
               </span>
               <span className="font-semibold">
-                {damageRate.toFixed(2)}%
+                {(cumulativeDamage * 100).toFixed(1)}%
               </span>
             </div>
             <div className="flex items-center justify-between">

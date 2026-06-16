@@ -28,7 +28,9 @@ export interface Turbine {
   wind_speed: number;
   rotor_rpm: number;
   rul_years: number;
-  damage_rate: number;
+  damage_rate: number;          // швидкість накопичення пошкодження, %/рік
+  cumulative_damage?: number;   // накопичене пошкодження D ∈ [0,1]
+  damage_fraction?: number;     // те саме, як частка
   last_update: string;
   owner_id: string;
 }
