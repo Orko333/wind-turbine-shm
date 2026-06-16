@@ -19,6 +19,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, Zap, Wind, Gauge } from 'lucide-react';
+import { buildRulForecast } from '@/lib/fatigue-model';
 import { useT, useLocale } from '@/lib/i18n';
 
 interface ScadaSample {
@@ -76,16 +77,17 @@ export default function OverviewPage() {
     }));
   }, [scadaHistory]);
 
-  // Прогноз RUL у РОКАХ: ресурс спадає на 1 рік за рік експлуатації й сягає 0
-  // через `rul` років; смуга невизначеності ±10 %.
-  const rulForecastData = useMemo(() => {
-    const rul = turbine?.rul_years ?? 0;
-    const horizon = Math.max(2, Math.ceil(rul));
-    return Array.from({ length: horizon + 1 }, (_, year) => {
-      const v = Math.max(0, rul - year);
-      return { year, rul: v, upper: v * 1.1, lower: v * 0.9 };
-    });
-  }, [turbine?.rul_years]);
+  // Нелінійний прогноз RUL: спадає швидше під кінець ресурсу (прискорення втоми)
+  // та у вітряні роки, узгоджено з кривою накопичення пошкодження (fatigue-model).
+  const rulForecastData = useMemo(
+    () => buildRulForecast({
+      currentDamage: turbine?.cumulative_damage ?? turbine?.damage_fraction ?? 0,
+      rulYears: turbine?.rul_years ?? 0,
+      designLifeYears: 20,
+      turbineId,
+    }),
+    [turbine?.cumulative_damage, turbine?.damage_fraction, turbine?.rul_years, turbineId]
+  );
 
   const recentAlerts = alerts.slice(0, 3);
 

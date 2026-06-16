@@ -20,6 +20,7 @@ import { getApiWithAuth } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DamageForecast } from '@/components/fatigue/DamageForecast';
+import { buildRulForecast } from '@/lib/fatigue-model';
 import { useT, useLocale } from '@/lib/i18n';
 
 interface ScadaSample {
@@ -92,18 +93,17 @@ export default function FatiguePage() {
 
   const snCurveData = useMemo(() => snCurve(), []);
 
-  // RUL countdown in YEARS: залишковий ресурс спадає на 1 рік за рік
-  // експлуатації й сягає 0 через `rul` років. Довірча смуга ±1.5 року.
-  const rulForecast = useMemo(() => {
-    const rul = turbine?.rul_years || 0;
-    const horizon = Math.max(2, Math.ceil(rul));
-    return Array.from({ length: horizon + 1 }, (_, year) => ({
-      year,
-      rul: Math.max(0, rul - year),
-      confidence_upper: Math.max(0, rul + 1.5 - year),
-      confidence_lower: Math.max(0, rul - 1.5 - year),
-    }));
-  }, [turbine?.rul_years]);
+  // Нелінійний прогноз RUL: спадає швидше під кінець ресурсу та у вітряні роки,
+  // узгоджено з кривою накопичення пошкодження (lib/fatigue-model).
+  const rulForecast = useMemo(
+    () => buildRulForecast({
+      currentDamage: turbine?.cumulative_damage ?? turbine?.damage_fraction ?? 0,
+      rulYears: turbine?.rul_years ?? 0,
+      designLifeYears: 20,
+      turbineId,
+    }),
+    [turbine?.cumulative_damage, turbine?.damage_fraction, turbine?.rul_years, turbineId]
+  );
 
   if (isLoading) {
     return (
@@ -147,7 +147,7 @@ export default function FatiguePage() {
             <Legend />
             <Line
               type="monotone"
-              dataKey="confidence_upper"
+              dataKey="upper"
               stroke="transparent"
               dot={false}
               isAnimationActive={false}
@@ -163,7 +163,7 @@ export default function FatiguePage() {
             />
             <Line
               type="monotone"
-              dataKey="confidence_lower"
+              dataKey="lower"
               stroke="transparent"
               dot={false}
               isAnimationActive={false}

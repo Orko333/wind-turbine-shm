@@ -8,6 +8,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Section, StatCell } from '@/components/ui/section';
 import { chartTheme, tooltipStyle, tooltipLabelStyle, tooltipItemStyle } from '@/lib/chart-theme';
+import { buildDamageCurve } from '@/lib/fatigue-model';
 import { useLocale } from '@/lib/i18n';
 
 interface DamageForecastProps {
@@ -83,71 +84,11 @@ export function DamageForecast({
   const { locale } = useLocale();
   const L = TXT[locale === 'uk' ? 'uk' : 'en'];
 
-  const model = useMemo(() => {
-    const design = designLifeYears > 0 ? designLifeYears : 20;
-    const dNow = Math.max(0, Math.min(1, currentDamage));
-    // Поточний «вік» турбіни в межах проєктного ресурсу.
-    const ageYears = Math.max(0.5, Math.min(design - 0.1, design - Math.max(0, rulYears)));
-
-    // Детермінований фазовий зсув із turbineId — стабільний рендер, без Math.random.
-    let h = 7;
-    const key = turbineId || 'wt';
-    for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 997;
-    const phi = (h / 997) * Math.PI * 2;
-
-    // Річний приріст пошкодження ≠ константа: накопичення за Пальмгреном–Майнером
-    // лінійне ЛИШЕ для стаціонарного навантаження. Реальний приріст =
-    //   base(yr)  — легке прискорення наприкінці ресурсу (поширення тріщини +
-    //               зниження 1-ї власної частоти, як у фізичних штрафах PINN), і
-    //   load(yr)  — міжрічна мінливість навантаження (нестаціонарний вітер).
-    // Приріст завжди > 0 → крива монотонна (узгоджено зі штрафом монотонності
-    // PINN), але це НЕ ідеальна пряма.
-    const incr = (yr: number) => {
-      const base = 1 + 0.5 * (yr / design);
-      const load = 1 + 0.5 * Math.sin(1.3 * yr + phi) + 0.28 * Math.sin(0.75 * yr + phi * 0.5);
-      return base * Math.max(0.2, load);
-    };
-    const N = design;
-    const raw: number[] = [0];
-    for (let yr = 1; yr <= N; yr++) raw[yr] = raw[yr - 1] + incr(yr - 0.5);
-    const rawAt = (t: number) => {
-      const i = Math.max(0, Math.min(N - 1, Math.floor(t)));
-      return raw[i] + (raw[i + 1] - raw[i]) * (t - i);
-    };
-    const rAge = rawAt(ageYears);
-    const rEnd = raw[N];
-    // Двосегментне масштабування: крива точно проходить через виміряну поточну
-    // точку (вік, dNow) і через (проєктний ресурс, 1.0) — тож RUL лишається
-    // узгодженим, а форма реалістично-нерівна.
-    const dCurve = (t: number) => {
-      if (t <= ageYears) return dNow * (rawAt(t) / Math.max(1e-9, rAge));
-      return dNow + (1 - dNow) * ((rawAt(t) - rAge) / Math.max(1e-9, rEnd - rAge));
-    };
-
-    const series = Array.from({ length: N + 1 }, (_, yr) => {
-      const mean = Math.max(0, Math.min(1, dCurve(yr)));
-      // 90 % ДІ розширюється з горизонтом прогнозу (від поточного віку вперед).
-      const horizon = Math.max(0, yr - ageYears);
-      const half = 1.645 * 0.055 * Math.sqrt(horizon + 0.5);
-      return {
-        year: yr,
-        d: Number(mean.toFixed(3)),
-        band: [Number(Math.max(0, mean - half).toFixed(3)), Number(Math.min(1.12, mean + half).toFixed(3))] as [number, number],
-      };
-    });
-
-    // Рік перетину порога 0.85 (лінійна інтерполяція по кривій).
-    let yearTo085 = Infinity;
-    for (let yr = Math.ceil(ageYears); yr <= N; yr++) {
-      const a = dCurve(yr - 1), b = dCurve(yr);
-      if (b >= 0.85) { yearTo085 = b > a ? (yr - 1) + (0.85 - a) / (b - a) : yr; break; }
-    }
-    // Поточна миттєва швидкість dD/dt (локальний нахил у поточному віці).
-    const rateNow = Math.max(0, dCurve(Math.min(N, ageYears + 0.5)) - dCurve(Math.max(0, ageYears - 0.5)));
-    const viable = dNow < 0.85;
-
-    return { design, dNow, ageYears, rate: rateNow, dAtCert: dCurve(design), yearTo085, viable, series };
-  }, [currentDamage, rulYears, designLifeYears, turbineId]);
+  const model = useMemo(
+    () => buildDamageCurve({ currentDamage, rulYears, designLifeYears, turbineId }),
+    [currentDamage, rulYears, designLifeYears, turbineId]
+  );
+  const viable = model.dNow < 0.85;
 
   const fmtAge = model.ageYears.toFixed(1);
   const dNowStr = model.dNow.toFixed(2).replace('.', locale === 'uk' ? ',' : '.');
@@ -232,7 +173,7 @@ export function DamageForecast({
               {/* Поточний стан + рішення про продовження ресурсу */}
               <ReferenceDot x={Number(model.ageYears.toFixed(1))} y={Number(model.dNow.toFixed(3))} r={6}
                 fill="hsl(6 72% 62%)" stroke="hsl(30 10% 5%)" strokeWidth={2}
-                label={{ value: model.viable ? L.decisionOk(dNowStr) : L.decisionNo(dNowStr), position: 'top', fill: 'hsl(6 72% 62%)', fontSize: 10 }} />
+                label={{ value: viable ? L.decisionOk(dNowStr) : L.decisionNo(dNowStr), position: 'top', fill: 'hsl(6 72% 62%)', fontSize: 10 }} />
             </ComposedChart>
           </ResponsiveContainer>
 
@@ -254,7 +195,7 @@ export function DamageForecast({
               value={model.yearTo085 <= model.design ? model.yearTo085.toFixed(1) : '—'}
               unit={model.yearTo085 <= model.design ? L.years : L.noReach}
             />
-            <StatCell label={L.rate} value={model.rate.toFixed(3)} unit={L.perYear} />
+            <StatCell label={L.rate} value={model.rateNow.toFixed(3)} unit={L.perYear} />
           </div>
         </>
       )}
