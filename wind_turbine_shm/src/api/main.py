@@ -77,9 +77,15 @@ async def lifespan(app: FastAPI):
         from ..auth.security import verify_password
         db = next(get_db())
         try:
+            # Детермінований UUID адміна (з email) — щоб після кожного перезапуску
+            # ефемерної БД у адміна був ТОЙ САМИЙ id, і раніше видані JWT лишались
+            # дійсними (інакше сесія "відвалюється" 403 на кожному рестарті Space).
+            import uuid as _uuid
+            admin_id = _uuid.uuid5(_uuid.NAMESPACE_DNS, f"wt-shm-admin:{admin_email}")
             existing = db.query(User).filter(User.email == admin_email).first()
             if not existing:
                 db.add(User(
+                    id=admin_id,
                     username=admin_username,
                     email=admin_email,
                     hashed_password=hash_password(admin_password),
