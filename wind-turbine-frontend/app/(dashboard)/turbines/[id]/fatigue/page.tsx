@@ -141,7 +141,7 @@ export default function FatiguePage() {
         <ResponsiveContainer width="100%" height={350}>
           <LineChart data={rulForecast}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="year" label={{ value: locale === 'uk' ? 'Роки вперед' : 'Years ahead', position: 'insideBottomRight', offset: -5 }} />
+            <XAxis dataKey="year" type="number" allowDecimals={false} domain={[0, 'dataMax']} label={{ value: locale === 'uk' ? 'Роки вперед' : 'Years ahead', position: 'insideBottomRight', offset: -5 }} />
             <YAxis label={{ value: locale === 'uk' ? 'RUL, років' : 'RUL, years', angle: -90, position: 'insideLeft' }} />
             <Tooltip />
             <Legend />
