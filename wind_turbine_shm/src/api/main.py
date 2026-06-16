@@ -94,6 +94,15 @@ async def lifespan(app: FastAPI):
                 logger.info(f"Admin user '{admin_username}' password updated from env.")
             else:
                 logger.info(f"Admin user '{admin_username}' already exists.")
+
+            # Auto-seed demo turbines for the admin at startup so the dashboard
+            # has data immediately after any (ephemeral) DB reset — not only
+            # after the first authenticated GET /turbines/ call. Idempotent.
+            from .routers.turbine import _ensure_demo_turbines
+            admin_user = db.query(User).filter(User.email == admin_email).first()
+            if admin_user:
+                _ensure_demo_turbines(db, admin_user)
+                logger.info("Demo turbines ensured for admin at startup.")
         except Exception as e:
             db.rollback()
             logger.warning(f"Could not seed admin user: {e}")
