@@ -1,7 +1,9 @@
 """Роутер інтеграції SCADA — підключення до реальних систем турбін."""
 
+import re
 from datetime import datetime, timedelta, timezone
 from io import StringIO
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -10,7 +12,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Optional, List
 from loguru import logger
 
-from ...database.config import get_db, SessionLocal
+from ...database.config import get_db
 from ...database.models import User, Turbine, ScadaReading as ScadaReadingDB
 from ..dependencies import get_current_user
 from ...scada.client import SCADAIntegration, SCADAProtocol, SCADAReading
@@ -321,39 +323,35 @@ async def export_scada_csv(
         raise HTTPException(status_code=404, detail="Turbine not found")
 
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    rows = (
+        db.query(ScadaReadingDB)
+        .filter(ScadaReadingDB.turbine_id == turbine_id, ScadaReadingDB.timestamp >= since)
+        .order_by(ScadaReadingDB.timestamp.asc())
+        .all()
+    )
+
+    buf = StringIO()
     cols = [
         "timestamp", "wind_speed", "rotor_rpm", "pitch_angle", "power_kw",
         "tower_moment_knm", "tower_top_accel_rms", "blade_load_kn",
         "vibration_mms", "nacelle_temp_degC", "cumulative_damage",
     ]
+    buf.write(",".join(cols) + "\n")
+    for r in rows:
+        buf.write(",".join(str(v) if v is not None else "" for v in [
+            r.timestamp.isoformat(),
+            r.wind_speed, r.rotor_rpm, r.pitch_angle, r.power_kw,
+            r.tower_moment_knm, r.tower_top_accel_rms, r.blade_load_kn,
+            r.vibration_mms, r.nacelle_temp_degC, r.cumulative_damage,
+        ]) + "\n")
 
-    def row_iter():
-        # Потокова віддача CSV рядок-за-рядком. Власна сесія, бо генератор
-        # виконується ПІСЛЯ повернення з ендпоінта (Depends-сесію вже закрито).
-        # yield_per не матеріалізує всі рядки в пам'яті — витримує великі
-        # експорти (раніше .all() + StringIO падали/таймаутили на «багато даних»).
-        sess = SessionLocal()
-        try:
-            yield ",".join(cols) + "\n"
-            q = (
-                sess.query(ScadaReadingDB)
-                .filter(ScadaReadingDB.turbine_id == turbine_id, ScadaReadingDB.timestamp >= since)
-                .order_by(ScadaReadingDB.timestamp.asc())
-                .yield_per(1000)
-            )
-            for r in q:
-                yield ",".join(str(v) if v is not None else "" for v in [
-                    r.timestamp.isoformat(),
-                    r.wind_speed, r.rotor_rpm, r.pitch_angle, r.power_kw,
-                    r.tower_moment_knm, r.tower_top_accel_rms, r.blade_load_kn,
-                    r.vibration_mms, r.nacelle_temp_degC, r.cumulative_damage,
-                ]) + "\n"
-        finally:
-            sess.close()
-
-    filename = f"turbine-{turbine_id}-{hours}h-{datetime.now(timezone.utc).date()}.csv"
+    # ASCII-safe Content-Disposition (RFC 5987). Кирилічний (нелатинський)
+    # turbine_id у filename інакше дає 'latin-1' UnicodeEncodeError → HTTP 500.
+    raw_name = f"turbine-{turbine_id}-{hours}h-{datetime.now(timezone.utc).date()}.csv"
+    ascii_name = re.sub(r"[^\x20-\x7e]", "_", raw_name).replace('"', "")
+    disposition = f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(raw_name)}"
     return StreamingResponse(
-        row_iter(),
+        iter([buf.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": disposition},
     )
