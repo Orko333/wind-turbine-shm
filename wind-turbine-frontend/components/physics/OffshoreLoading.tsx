@@ -12,7 +12,7 @@ interface OffshoreLoadingProps {
     water_depth: number;
     total_load: number;
   };
-  model?: '2.5MW' | '3.0MW';
+  model?: string;
   isLoading?: boolean;
 }
 

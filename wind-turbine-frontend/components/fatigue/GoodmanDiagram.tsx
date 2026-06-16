@@ -14,11 +14,13 @@ interface GoodmanDiagramProps {
 
 export function GoodmanDiagram({ data = [], isLoading }: GoodmanDiagramProps) {
   const t = useT();
-  const material = { ultimate_strength: 300, yield_strength: 250, fatigue_limit: 120 };
+  // Сталь S355 / E355 башти турбіни (DNV-ST-0437): σ_u = 490 МПа, σ_y = 355 МПа,
+  // границя витривалості σ_a0 = 140 МПа. Значення з пояснювальної записки (§2.2.2).
+  const material = { ultimate_strength: 490, yield_strength: 355, fatigue_limit: 140 };
 
   const goodmanLine = useMemo(() => {
     const points = [];
-    for (let m = 0; m <= 200; m += 10) {
+    for (let m = 0; m <= material.ultimate_strength; m += 20) {
       points.push({
         mean_stress: m,
         alternating_stress: Math.max(0, material.fatigue_limit * (1 - m / material.ultimate_strength)),

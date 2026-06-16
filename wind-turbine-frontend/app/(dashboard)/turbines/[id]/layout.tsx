@@ -25,7 +25,6 @@ export default function TurbineDetailLayout({
   const TABS = [
     { id: 'overview', label: t('turbines.tab.overview') },
     { id: 'fatigue', label: t('turbines.tab.fatigue') },
-    { id: 'visualization', label: t('turbines.tab.visualization') },
     { id: 'health', label: t('turbines.tab.health') },
     { id: 'settings', label: t('turbines.tab.settings') },
   ];

@@ -16,6 +16,7 @@ import { DamageHistogram } from '@/components/fatigue/DamageHistogram';
 import { RULDistribution } from '@/components/fatigue/RULDistribution';
 import { TopDamagedTurbines } from '@/components/fatigue/TopDamagedTurbines';
 import { DamageAccumulation } from '@/components/fatigue/DamageAccumulation';
+import { DamageForecast } from '@/components/fatigue/DamageForecast';
 import { GoodmanDiagram } from '@/components/fatigue/GoodmanDiagram';
 import { RainflowHistogram } from '@/components/fatigue/RainflowHistogram';
 import { SNChart } from '@/components/fatigue/SNChart';
@@ -80,14 +81,34 @@ interface FatigueData {
     current_value: number;
     threshold: number;
   }>;
+  forecast: {
+    turbine_id: string;
+    current_damage: number;
+    rul_years: number;
+    design_life_years: number;
+  } | null;
 }
 
-// Steel S355 (typical tower steel) material constants
-const ULTIMATE_STRENGTH_MPA = 470; // Su
-const FATIGUE_LIMIT_MPA = 160; // Se at 10^6 cycles
-const WOHLER_EXPONENT = 5; // m
+// Сталь S355 / E355 башти турбіни (DNV-ST-0437, записка §2.2.2):
+const ULTIMATE_STRENGTH_MPA = 490; // σ_u (границя міцності)
+const FATIGUE_LIMIT_MPA = 140;     // σ_a0 (границя витривалості)
 
-// Goodman linear correction: σa = Se × (1 − σm/Su)
+// Біномна крива Велера (S-N), клас FAT 71 — зварне стикове з'єднання башти.
+// log N = log C − m·log Δσ, з колінною точкою N_knee = 10^7 (записка, ф-ли 2.1–2.2).
+const SN_LOG_C1 = 12.592; // m1 = 3, область N ≤ N_knee
+const SN_M1 = 3;
+const SN_LOG_C2 = 16.301; // m2 = 5, область N > N_knee
+const SN_M2 = 5;
+const SN_N_KNEE = 1e7;
+
+// Кількість циклів до руйнування N_f для діапазону напружень Δσ [МПа].
+function nFromStress(dSigma: number): number {
+  const n1 = Math.pow(10, SN_LOG_C1 - SN_M1 * Math.log10(dSigma));
+  if (n1 <= SN_N_KNEE) return n1;            // високі напруження — крутий нахил m1=3
+  return Math.pow(10, SN_LOG_C2 - SN_M2 * Math.log10(dSigma)); // нижче коліна — m2=5
+}
+
+// Корекція Гудмана: σ_a = σ_a0 × (1 − σ_m/σ_u)  (записка, ф-ла 2.4)
 function computeGoodmanCurve(): Array<{ mean_stress: number; alternating_stress: number; correction_method: string }> {
   const points: Array<{ mean_stress: number; alternating_stress: number; correction_method: string }> = [];
   for (let mean = 0; mean <= ULTIMATE_STRENGTH_MPA; mean += 40) {
@@ -100,24 +121,17 @@ function computeGoodmanCurve(): Array<{ mean_stress: number; alternating_stress:
   return points;
 }
 
-// Basquin / bilinear S-N: N = (Se/σa)^m × 1e6 above the knee, with knee at 10^7
+// Біномна S-N крива FAT 71 + еталонні випробувальні точки з фізичним розсіюванням.
 function computeSNCurve(): { bilinear_model: Array<{ stress: number; n_cycles: number }>; test_data: Array<{ stress: number; n_cycles: number }> } {
   const bilinear_model = Array.from({ length: 50 }, (_, i) => {
-    const stress = 50 + i * 8;
-    let n: number;
-    if (stress >= FATIGUE_LIMIT_MPA) {
-      n = Math.pow(FATIGUE_LIMIT_MPA / stress, WOHLER_EXPONENT) * 1e6;
-    } else {
-      n = 1e7;
-    }
-    return { stress, n_cycles: n };
+    const stress = 40 + i * 8; // 40…432 МПа
+    return { stress, n_cycles: nFromStress(stress) };
   });
-  // Deterministic scatter on the model itself — represents reference test data.
+  // Детерміноване розсіювання навколо моделі — репрезентує еталонні дані DNV.
   const test_data = Array.from({ length: 12 }, (_, i) => {
     const stress = 80 + i * 25;
-    const baseN = Math.pow(FATIGUE_LIMIT_MPA / stress, WOHLER_EXPONENT) * 1e6;
     const scatter = 0.7 + 0.6 * Math.abs(Math.sin(i * 1.7));
-    return { stress, n_cycles: baseN * scatter };
+    return { stress, n_cycles: nFromStress(stress) * scatter };
   });
   return { bilinear_model, test_data };
 }
@@ -272,7 +286,20 @@ export default function FatiguePage() {
         const snCurve = computeSNCurve();
         const rainflowCycles = computeRainflowFromFleet(avgDamage, projected.length);
 
-        setData({ damageDistribution, topDamagedTurbines, rulDistribution, damageHistory, goodmanData, rainflowCycles, snCurve, threshold_warnings });
+        // Репрезентативна турбіна для 20-річного прогнозу — найбільш пошкоджена
+        // у поточному стані парку (реальні значення з БД, без проєкції по даті).
+        const representative = [...turbines]
+          .sort((a, b) => (b.cumulative_damage ?? 0) - (a.cumulative_damage ?? 0))[0];
+        const forecast = representative
+          ? {
+              turbine_id: representative.turbine_id,
+              current_damage: representative.cumulative_damage ?? 0,
+              rul_years: representative.rul_years ?? 12,
+              design_life_years: designLife,
+            }
+          : null;
+
+        setData({ damageDistribution, topDamagedTurbines, rulDistribution, damageHistory, goodmanData, rainflowCycles, snCurve, threshold_warnings, forecast });
       } catch (err) {
         console.error('Fatigue page API error:', err);
         showError(t('fatigue.load_failed'));
@@ -469,6 +496,19 @@ export default function FatiguePage() {
 
         {data && (
           <>
+            {/* 20-year damage forecast — flagship chart */}
+            {data.forecast && (
+              <section className="mt-12">
+                <DamageForecast
+                  turbineId={data.forecast.turbine_id}
+                  currentDamage={data.forecast.current_damage}
+                  rulYears={data.forecast.rul_years}
+                  designLifeYears={data.forecast.design_life_years}
+                  isLoading={isLoading}
+                />
+              </section>
+            )}
+
             {/* Distributions */}
             <section className="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-px surface-2 hairline border rounded-lg overflow-hidden">
               <div className="surface-1 p-6">

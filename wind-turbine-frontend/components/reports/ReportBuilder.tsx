@@ -28,30 +28,33 @@ interface ReportConfig {
   reportType: 'summary' | 'detailed' | 'trend';
 }
 
+// Показники звіту відповідають фактичним виходам системи (записка §1.4):
+// індекс пошкодження D, DEL, RUL, клас стану, оцінка аномальності, рівень тривоги
+// та ключові вхідні SCADA-ознаки.
 const METRIC_NAMES = {
   en: {
-    power_output: 'Power Output',
-    efficiency: 'Efficiency',
-    availability: 'Availability',
-    damage_index: 'Cumulative Damage',
-    rul: 'Remaining Useful Life',
-    vibration: 'Vibration Amplitude',
+    damage_index: 'Cumulative Damage D',
+    del_mpa: 'Damage Equivalent Load (DEL)',
+    rul_years: 'Remaining Useful Life (years)',
+    damage_class: 'State Class (Healthy/Warning/Critical)',
+    anomaly_score: 'Anomaly Score',
+    alert_level: 'Alert Level',
+    power_kw: 'Active Power',
     wind_speed: 'Wind Speed',
-    temperature: 'Temperature',
-    frequency_distribution: 'Frequency Distribution',
-    load_distribution: 'Load Distribution',
+    tower_moment_knm: 'Tower Base Moment',
+    nacelle_temp: 'Nacelle Temperature',
   },
   uk: {
-    power_output: 'Вихідна потужність',
-    efficiency: 'Ефективність',
-    availability: 'Доступність',
-    damage_index: 'Накопичене пошкодження',
-    rul: 'Залишковий ресурс',
-    vibration: 'Амплітуда вібрації',
+    damage_index: 'Накопичене пошкодження D',
+    del_mpa: 'Еквівалентне навантаження (DEL)',
+    rul_years: 'Залишковий ресурс (роки)',
+    damage_class: 'Клас стану (Healthy/Warning/Critical)',
+    anomaly_score: 'Оцінка аномальності',
+    alert_level: 'Рівень тривоги',
+    power_kw: 'Активна потужність',
     wind_speed: 'Швидкість вітру',
-    temperature: 'Температура',
-    frequency_distribution: 'Розподіл частот',
-    load_distribution: 'Розподіл навантаження',
+    tower_moment_knm: 'Згинальний момент башти',
+    nacelle_temp: 'Температура гондоли',
   },
 } as const;
 
@@ -115,16 +118,16 @@ const UI_TEXT = {
 } as const;
 
 const availableMetrics: ReportMetric[] = [
-  { id: 'power_output', name: METRIC_NAMES.en.power_output, type: 'timeseries' },
-  { id: 'efficiency', name: METRIC_NAMES.en.efficiency, type: 'scalar' },
-  { id: 'availability', name: METRIC_NAMES.en.availability, type: 'scalar' },
   { id: 'damage_index', name: METRIC_NAMES.en.damage_index, type: 'timeseries' },
-  { id: 'rul', name: METRIC_NAMES.en.rul, type: 'scalar' },
-  { id: 'vibration', name: METRIC_NAMES.en.vibration, type: 'timeseries' },
+  { id: 'del_mpa', name: METRIC_NAMES.en.del_mpa, type: 'timeseries' },
+  { id: 'rul_years', name: METRIC_NAMES.en.rul_years, type: 'scalar' },
+  { id: 'damage_class', name: METRIC_NAMES.en.damage_class, type: 'scalar' },
+  { id: 'anomaly_score', name: METRIC_NAMES.en.anomaly_score, type: 'timeseries' },
+  { id: 'alert_level', name: METRIC_NAMES.en.alert_level, type: 'scalar' },
+  { id: 'power_kw', name: METRIC_NAMES.en.power_kw, type: 'timeseries' },
   { id: 'wind_speed', name: METRIC_NAMES.en.wind_speed, type: 'timeseries' },
-  { id: 'temperature', name: METRIC_NAMES.en.temperature, type: 'timeseries' },
-  { id: 'frequency_distribution', name: METRIC_NAMES.en.frequency_distribution, type: 'distribution' },
-  { id: 'load_distribution', name: METRIC_NAMES.en.load_distribution, type: 'distribution' },
+  { id: 'tower_moment_knm', name: METRIC_NAMES.en.tower_moment_knm, type: 'timeseries' },
+  { id: 'nacelle_temp', name: METRIC_NAMES.en.nacelle_temp, type: 'distribution' },
 ];
 
 export function ReportBuilder() {
@@ -194,8 +197,8 @@ export function ReportBuilder() {
           metrics: config.metrics.map((m) => m.id),
           turbine_ids: fleet.map((t) => String(t.turbine_id ?? '')),
           format,
-          date_from: config.dateFrom,
-          date_to: config.dateTo,
+          date_from: config.dateRange.startDate,
+          date_to: config.dateRange.endDate,
         });
       } catch (err) {
         console.warn('Report record creation failed; downloading file anyway', err);
@@ -211,10 +214,10 @@ export function ReportBuilder() {
           title: config.title,
           type: config.reportType,
           description: config.description,
-          date_from: config.dateFrom,
-          date_to: config.dateTo,
+          date_from: config.dateRange.startDate,
+          date_to: config.dateRange.endDate,
           generated_at: new Date().toISOString(),
-          metrics: config.metrics.map((m) => ({ id: m.id, name: m.label, type: m.type })),
+          metrics: config.metrics.map((m) => ({ id: m.id, name: metricNames[m.id as keyof typeof metricNames] ?? m.id, type: m.type })),
           fleet_snapshot: fleet,
         };
         blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -252,7 +255,7 @@ export function ReportBuilder() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     },
-    [config]
+    [config, metricNames]
   );
 
   const handleGenerateReport = useCallback(async () => {
@@ -426,17 +429,10 @@ export function ReportBuilder() {
       {/* Action Buttons */}
       <div className="flex gap-3 justify-end">
         <Button
-          variant="outline"
-          onClick={handleExportReport}
-          disabled={isGenerating || !config.id}
-        >
-          <Download className="w-4 h-4 mr-2" />
-          {L.export}
-        </Button>
-        <Button
           onClick={handleGenerateReport}
           disabled={isGenerating || config.metrics.length === 0}
         >
+          <Download className="w-4 h-4 mr-2" />
           {isGenerating ? L.generating : L.generateReport}
         </Button>
       </div>

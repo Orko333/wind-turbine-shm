@@ -5,7 +5,7 @@ import os as _os
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Text, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.types import TypeDecorator
 
@@ -116,6 +116,8 @@ class Turbine(Base):
 
 class TurbinePrediction(Base):
     __tablename__ = "turbine_predictions"
+    # Композитний індекс для вибірки прогнозів турбіни за часовим діапазоном (записка §2.3.4).
+    __table_args__ = (Index("ix_pred_turbine_created", "turbine_id", "created_at"),)
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     turbine_id = Column(UUID(as_uuid=True), ForeignKey("turbines.id"), nullable=False)
@@ -160,6 +162,8 @@ class TurbinePrediction(Base):
 class ScadaReading(Base):
     """Time-series SCADA telemetry sample for a turbine."""
     __tablename__ = "scada_readings"
+    # Композитний індекс (turbine_id, timestamp) для швидкої вибірки часових діапазонів (записка §2.3.4).
+    __table_args__ = (Index("ix_scada_turbine_timestamp", "turbine_id", "timestamp"),)
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     turbine_id = Column(String(50), nullable=False, index=True)
@@ -184,6 +188,8 @@ class ScadaReading(Base):
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+    # Композитний індекс для запитів типу «усі помилки за день» (записка §2.3.4).
+    __table_args__ = (Index("ix_audit_action_created", "action", "created_at"),)
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)

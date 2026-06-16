@@ -64,7 +64,7 @@ class RULEstimator:
         self,
         D_critical: float = 1.0,
         period_minutes: float = 10.0,
-        ewma_alpha: float = 0.05,
+        ewma_alpha: float = 0.3,
         min_history: int = 12,
     ) -> None:
         self.D_critical = D_critical

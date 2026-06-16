@@ -40,8 +40,7 @@ export function TopBar() {
   const { isConnected, connectionError } = useRealtimeStore();
   const {
     role,
-    canViewDashboard, canViewTurbines, canEditConfig,
-    canRunSimulations, canViewAnalytics, canAccessAdmin,
+    canViewDashboard, canViewTurbines, canViewAnalytics,
   } = useRole();
 
   const router = useRouter();
@@ -86,17 +85,11 @@ export function TopBar() {
   }, []);
 
   const allItems: NavItem[] = [
-    { num: '01', labelKey: 'nav.dashboard',   href: '/dashboard',   permission: canViewDashboard },
-    { num: '02', labelKey: 'nav.turbines',    href: '/turbines',    permission: canViewTurbines },
-    { num: '03', labelKey: 'nav.physics',     href: '/physics',     permission: canViewTurbines },
-    { num: '04', labelKey: 'nav.fatigue',     href: '/fatigue',     permission: canViewAnalytics },
-    { num: '05', labelKey: 'nav.ml',          href: '/ml',          permission: canViewAnalytics },
-    { num: '06', labelKey: 'nav.monitoring',  href: '/monitoring',  permission: canViewTurbines },
-    { num: '07', labelKey: 'nav.scada',       href: '/scada',       permission: canViewTurbines },
-    { num: '08', labelKey: 'nav.simulations', href: '/simulations', permission: canRunSimulations },
-    { num: '09', labelKey: 'nav.config',      href: '/config',      permission: canEditConfig },
-    { num: '10', labelKey: 'nav.reports',     href: '/reports',     permission: canViewAnalytics },
-    { num: '11', labelKey: 'nav.admin',       href: '/admin',       permission: canAccessAdmin },
+    { num: '01', labelKey: 'nav.dashboard', href: '/dashboard', permission: canViewDashboard },
+    { num: '02', labelKey: 'nav.turbines',  href: '/turbines',  permission: canViewTurbines },
+    { num: '03', labelKey: 'nav.fatigue',   href: '/fatigue',   permission: canViewAnalytics },
+    { num: '04', labelKey: 'nav.scada',     href: '/scada',     permission: canViewTurbines },
+    { num: '05', labelKey: 'nav.reports',   href: '/reports',   permission: canViewAnalytics },
   ];
 
   const visible = allItems.filter((i) => i.permission?.() ?? true);

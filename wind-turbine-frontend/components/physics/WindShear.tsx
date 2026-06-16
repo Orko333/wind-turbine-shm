@@ -21,11 +21,12 @@ interface WindShearProps {
     height: number;
     wind_speed: number;
   }>;
-  model?: '2.5MW' | '3.0MW';
+  model?: string;
+  hubHeightM?: number;
   isLoading?: boolean;
 }
 
-export function WindShear({ data = [], model = '2.5MW', isLoading }: WindShearProps) {
+export function WindShear({ data = [], model = '2.5MW', hubHeightM, isLoading }: WindShearProps) {
   const t = useT();
   // Експонента зсуву вітру (типове значення: 0.2 для рівнинного рельєфу, 0.4 для нерівного)
   const shearExponent = 0.25;
@@ -50,7 +51,7 @@ export function WindShear({ data = [], model = '2.5MW', isLoading }: WindShearPr
     return result;
   }, [data]);
 
-  const hubHeight = model === '3.0MW' ? 100 : 90; // метри
+  const hubHeight = hubHeightM ?? (model === '3.0MW' ? 100 : 90); // метри
   const speedAtHub = useMemo(() => {
     return referenceSpeed *
       Math.pow(hubHeight / referenceHeight, shearExponent);

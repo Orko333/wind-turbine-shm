@@ -21,13 +21,14 @@ interface PowerCurveProps {
     wind_speed: number;
     power: number;
   }>;
-  model?: '2.5MW' | '3.0MW';
+  model?: string;
+  ratedPowerKw?: number;
   isLoading?: boolean;
 }
 
-export function PowerCurve({ data = [], model = '2.5MW', isLoading }: PowerCurveProps) {
+export function PowerCurve({ data = [], model = '2.5MW', ratedPowerKw, isLoading }: PowerCurveProps) {
   const t = useT();
-  const ratedPower = model === '3.0MW' ? 3000 : 2500;
+  const ratedPower = ratedPowerKw ?? (model === '3.0MW' ? 3000 : 2500);
 
   // Генерація гладкої кривої через точки даних з використанням наближення кубічним сплайном
   const chartData = useMemo(() => {
