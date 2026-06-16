@@ -268,7 +268,9 @@ export async function deleteApiWithAuth<T>(
 export async function getBlobWithAuth(endpoint: string): Promise<Blob> {
   const url = `${API_BASE_URL}${endpoint}`;
   const doFetch = (token: string | null) =>
-    fetchWithTimeout(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    // Large CSV exports on the slow free-tier backend (or a cold start) can take
+    // far longer than the 30s default — use a generous 3-minute timeout.
+    fetchWithTimeout(url, { timeout: 180_000, headers: token ? { Authorization: `Bearer ${token}` } : {} });
 
   let res = await doFetch(getAuthToken());
   if (res.status === 401) {
