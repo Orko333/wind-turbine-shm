@@ -178,14 +178,15 @@ export function ReportBuilder() {
     async (format: 'json' | 'csv') => {
       // 1. Pull the fleet snapshot so the report contains real numbers,
       //    not just the form metadata.
+      // page_size must be ≤ 100 (backend cap) — 200 returned HTTP 422, which was
+      // silently swallowed and produced an empty report. Fail loudly instead.
       let fleet: Array<Record<string, unknown>> = [];
-      try {
-        const r = await getApiWithAuth<{ data: Array<Record<string, unknown>> }>(
-          '/turbines/?page=1&page_size=200'
-        );
-        fleet = r.data || [];
-      } catch (err) {
-        console.warn('Report fleet fetch failed; continuing with metadata-only report', err);
+      const r = await getApiWithAuth<{ data: Array<Record<string, unknown>> }>(
+        '/turbines/?page=1&page_size=100'
+      );
+      fleet = r.data || [];
+      if (fleet.length === 0) {
+        throw new Error('No turbine data available to include in the report');
       }
 
       // 2. Tell the backend a report was generated (creates an

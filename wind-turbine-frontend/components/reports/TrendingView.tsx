@@ -98,7 +98,7 @@ export function TrendingView() {
   const [fleet, setFleet] = useState<TurbineRow[]>([]);
 
   useEffect(() => {
-    getApiWithAuth<FleetListResponse>('/turbines/?page=1&page_size=200')
+    getApiWithAuth<FleetListResponse>('/turbines/?page=1&page_size=100')
       .then((r) => setFleet(r.data))
       .catch((err) => {
         console.error('TrendingView fleet load failed:', err);

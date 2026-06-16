@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Download } from 'lucide-react';
 import type { TurbineRealtimeData } from '@/types/api';
-import { getApiWithAuth } from '@/lib/api';
+import { getApiWithAuth, getBlobWithAuth } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 
 export default function SCADAPage() {
@@ -77,13 +77,11 @@ export default function SCADAPage() {
 
     setIsExporting(true);
     try {
-      const base = process.env.NEXT_PUBLIC_API_URL || 'https://test1111ww-wind-turbine-shm-api.hf.space';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-      const res = await fetch(`${base}/scada/export/${selectedTurbineId}.csv?hours=24`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error(`Export failed (${res.status})`);
-      const blob = await res.blob();
+      // Use the refresh-capable blob fetch (encodes Cyrillic turbine_id, retries
+      // once on a stale token) instead of a raw fetch that failed silently.
+      const blob = await getBlobWithAuth(
+        `/scada/export/${encodeURIComponent(selectedTurbineId)}.csv?hours=24`
+      );
 
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');

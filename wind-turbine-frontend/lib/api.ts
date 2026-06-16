@@ -260,6 +260,28 @@ export async function deleteApiWithAuth<T>(
 }
 
 /**
+ * Authenticated binary (Blob) GET with one-shot token refresh on 401 — for file
+ * downloads (CSV export) that the JSON helpers can't return. Without this the
+ * SCADA export used a raw fetch with a possibly-stale localStorage token and
+ * failed silently ("doesn't export") instead of refreshing like the rest of the app.
+ */
+export async function getBlobWithAuth(endpoint: string): Promise<Blob> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const doFetch = (token: string | null) =>
+    fetchWithTimeout(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+
+  let res = await doFetch(getAuthToken());
+  if (res.status === 401) {
+    const fresh = await refreshAccessToken();
+    if (fresh) res = await doFetch(fresh);
+  }
+  if (!res.ok) {
+    throw new ApiError(res.status, `Export failed (HTTP ${res.status})`);
+  }
+  return res.blob();
+}
+
+/**
  * Отримати authorization token from localStorage
  */
 export function getAuthToken(): string | null {
